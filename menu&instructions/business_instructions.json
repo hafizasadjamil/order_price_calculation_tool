@@ -1,0 +1,215 @@
+{
+  "business_details": {
+    "restaurant_name": "Al-Sham Restaurant",
+    "store_address": "4275 County Line Rd, Chalfont, PA 18914",
+    "phone_number": "215-716-3162",
+    "email": "4275Countyline@alshamrestaurant.com"
+  },
+  "operating_hours": {
+    "normal_days": "Monday - Sunday 10am - 10pm",
+    "holiday_hours": "None"
+  },
+  "location_description": {
+    "landmarks": "A few doors down from GIANT Food grocery",
+    "major_roads": "West Butler Ave and County Line Rd",
+    "special_access": "Inside the New Britain Village Square Plaza"
+  },
+  "specials_and_deals": {
+    "best_selling": [
+      "Al-Sham New York Platter - Any choice of protein cooked with onion and hot pepper topped with White and Red Sauce",
+      "Spicy Chicken Sandwich - Made fresh to order with bang bang sauce, pickle, onion and lettuce, served with French fries"
+    ],
+    "ongoing_promotions": "No"
+  },
+  "pricing_config": {
+    "tax_rate": 0.06,
+    "currency": "USD",
+    "include_combo_prompt": true,
+    "sauce_guard_info": "NY platters already include sauces on top; extra sauce is charged as a modifier."
+  },
+  "upselling_and_popular_items": {
+    "upsell_items": [
+      "Special drinks",
+      "Falafel",
+      "Samosa",
+      "Kibbe (Kibbeh)",
+      "Meat pie",
+      "Cheese pie",
+      "Spinach pie",
+      "Desserts"
+    ],
+    "signature_items": [
+      "The New York Platters with choice of protein",
+      "Arabic Sandwiches (Chicken, Lamb Shawarma, Desi Cheese Steak)",
+      "Al-Sham Cheese Steak",
+      "Al-Sham New York Platter",
+      "Mixed Al-Sham Platter"
+    ]
+  },
+  "intent_detection": {
+    "online_order_confirm_regex": [
+      "(?i)\\bconfirm(ing)?\\s+my\\s+online\\s+order\\b",
+      "(?i)\\b(order|ordered)\\s+online\\b",
+      "(?i)\\b(is|was)\\s+my\\s+online\\s+order\\s+for\\s+pickup\\b",
+      "(?i)\\b(door\\s*dash|doordash|grub\\s*hub|grubhub|uber\\s*eats|ubereats)\\b",
+      "(?i)\\bwebsite\\s+order\\b"
+    ],
+    "reservation_regex": [
+      "(?i)\\b(reserve|reservation|book)\\s+(a\\s+)?table\\b"
+    ],
+    "catering_regex": [
+      "(?i)\\b(catering|large\\s*order|party\\s*tray|tray\\s*order|banquet)\\b"
+    ],
+    "pickup_first_regex": [
+      "(?i)\\b(for\\s+)?pickup\\b",
+      "(?i)\\b(place\\s+a\\s+pickup\\s+order\\b)",
+      "(?i)\\b(i'?m\\s+picking\\s+up\\b)"
+    ],
+    "delivery_first_regex": [
+      "(?i)\\b(for\\s+)?delivery\\b",
+      "(?i)\\bdeliver\\s+to\\b",
+      "(?i)\\bsend\\s+to\\s+my\\s+address\\b"
+    ],
+    "utterance_patterns_for_total": [
+  "(?i)\\b(that'?s all|no more|give me total|how much|what'?s my total|done ordering)\\b"
+]
+
+  },
+  "order_process": {
+    "options": [
+      "Delivery",
+      "Pickup",
+      "Dine-in"
+    ],
+    "flow": [
+      "Greet",
+      "Detect intent",
+      "Skip duplicate questions",
+      "Menu categories",
+      "Confirm",
+      "Price confirmation",
+      "Pickup/delivery info"
+    ],
+    "order_reference": "Item names",
+    "bot_questions": [
+      "Spice level",
+      "Drink choices",
+      "Dessert",
+      "Extras"
+    ],
+    "rules": {
+      "respect_declared_order_type": true,
+      "never_reask_pickup_or_delivery_if_user_already_said_it": true,
+      "do_not_request_address_for_pickup": true,
+      "require_address_for_delivery": true,
+      "collect_phone_only_when": [
+        "delivery",
+        "callback_requested",
+        "text_receipt_requested"
+      ],
+      "pricing_source_of_truth": "Always use price_order_with_tool; on any error/timeout use total_with_tool.",
+      "pack_optimizer_phrases_window": "Include last 2 user turns in 'utterances_last_2_turns' for 'singles only'/'no deals' detection."
+    }
+  },
+  "warm_transfer": {
+    "enabled": true,
+    "transfer_number": "215-716-3162",
+    "scenarios": [
+      "Vendor Calls",
+      "Complaints",
+      "Wants to speak with manager",
+      "Catering orders",
+      "Job inquiry",
+      "Online order confirmation when system access is unavailable",
+      "Reservation requests",
+      "Payment/refund/charged twice dispute",
+      "Pricing calculation failure / tool timeout"
+    ],
+    "trigger_phrases": [
+      "I want to talk to the manager",
+      "I’m calling about a job",
+      "I’m calling about a catering",
+      "I have a delivery",
+      "I want to cancel an order or item",
+      "I want to make changes",
+      "I need help with an order",
+      "confirm my online order",
+      "reservation",
+      "refund",
+      "charged twice",
+      "payment issue",
+      "i want to talk with mr/ms"
+    ],
+    "transfer_scripts": {
+      "online_order": "I’m sorry, I can’t access the online order details from here. I’ll connect you to the store to confirm right away.",
+      "default": "Let me connect you to the store for that."
+    }
+  },
+  "tool_access_policies": {
+    "online_orders_access": "unavailable",
+    "on_unavailable": "perform warm transfer immediately; do not proceed with the call pretending to have access.",
+    "price_order_with_tool": {
+      "http_method": "POST",
+      "timeout_ms": 8000,
+      "retry": {
+        "max": 1,
+        "backoff_ms": 300
+      },
+      "must_include": [
+        "cart",
+        "utterance"
+      ],
+      "disable_when": [
+        "no_internet"
+      ],
+      "fallback": "total_with_tool"
+    },
+    "total_with_tool": {
+      "http_method": "POST",
+      "timeout_ms": 6000,
+      "retry": {
+        "max": 1,
+        "backoff_ms": 200
+      },
+      "must_include": [
+        "prices"
+      ],
+      "disable_when": [
+        "no_internet"
+      ],
+      "fallback": "warm_transfer_manager"
+    }
+  },
+  "developer_call_templates": {
+    "price_order_with_tool": {
+      "url": "https://0c6a5d90d130.ngrok-free.app/calc",
+      "method": "POST",
+      "body": {
+        "cart": "resolved_cart_lines_with_ids_variants_modifiers",
+        "utterance": "last_user_instruction_string"
+      },
+      "on_success_assign": "tool_result",
+      "on_failure": "price_fallback_invoke_total_tool"
+    },
+    "total_with_tool": {
+      "url": "https://ai.hhfortune.com/eleven-labs/price-calculation",
+      "method": "POST",
+      "body": {
+        "prices": "llm_compiled_prices_string"
+      },
+      "on_success_assign": "tool_result",
+      "on_failure": "pricing_fallback"
+    }
+  },
+  "readback_policy": {
+    "line_format": "{qty}× {desc} — {line_total}",
+    "optimizer_line_format": "{desc} — {line_total}",
+    "show_subtotal_tax_total": true,
+    "round_display_to_2dp": true,
+    "never_round_server_values": true
+  },
+  "additional_info": {
+    "catering_or_bulk": "Yes",
+    "social_media": "Follow us on IG and FB"
+  }
+}

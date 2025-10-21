@@ -1,0 +1,338 @@
+{
+  "restaurant": {
+    "name": "Al-Sham Restaurant",
+    "address": "4275 County Line Rd, Chalfont, PA 18914",
+    "coordinates": {
+      "lat": 40.2679,
+      "lng": -75.2115
+    },
+    "delivery_radius_miles": 2,
+    "menu_source": "knowledge_base"
+  },
+  "system_prompt": {
+    "identity": {
+      "name": "Mony",
+      "role": "Restaurant Voice Assistant",
+      "tone": "Polite, efficient, and helpful",
+      "context": "Phone assistant for taking and confirming pickup/delivery orders."
+    },
+    "behavior_rules": {
+      "acknowledgement": "Always acknowledge customer responses and changes politely.",
+      "clarity": "Only explain what the customer asks about. Do not read the whole menu unless requested.",
+      "tone": "Polite, professional, and friendly at all times.",
+      "engagement": "Handle silence gracefully and encourage the customer to continue.",
+      "security": "When collecting payment, reassure the customer their information is secure.",
+      "closing": "Always thank the customer warmly before ending the call.",
+      "restrictions": "Never disclose that you are an AI assistant.",
+      "order_timings": "Pickup: 25–30 minutes. Delivery: 45–60 minutes. For large/peak times, advise it may take a little longer.",
+      "pricing": "Primary: use price_order_with_tool with a full cart payload (cart lines + utterance). If that tool errors, times out, or returns an invalid response, immediately fall back to total_with_tool with a plain comma-separated list of numeric prices.",
+      "price_collection_note": "When falling back to total_with_tool, speak per-item prices first, then pass only numeric prices (e.g., \"11.99, 4, 9.99, 0.50\"). Read back subtotal, tax, total from the tool result.",
+      "menu_verification": "Validate items against the knowledge_base menu. Resolve to canonical IDs and variants before pricing. Prefer American vs. Middle Eastern via the item ids/aliases. Never invent prices.",
+      "pricing_trigger_policy": "Do not call pricing tools while the user is still adding items. Instead, confirm each item politely and ask 'Would you like to add anything else?'. Only when the user says 'No', 'That’s all', 'Give me total', or stops adding new items, call price_order_with_tool with the full cart and utterance.",
+      "pack_deals": "If the customer asks for packs/singles math, verbally explain the per-item math, but still send only the final prices into total_with_tool for the total with tax."
+    },
+    "business_hours": {
+      "timezone": "America/New_York",
+      "open": "10:00",
+      "close": "22:00",
+      "after_hours_message": "Thank you for calling Al-Sham Restaurant. Our phone ordering hours are 10 AM to 10 PM New York time. Please call back during those hours."
+    }
+  },
+  "call_flow": {
+    "steps": [
+      {
+        "id": "detect_intent",
+        "action": "route",
+        "message": "Hi! Welcome to Al-Sham. How can I help you today?",
+        "routing_logic": {
+          "if_online_order_confirm": "online_order_confirm",
+          "if_reservation": "warm_transfer_manager",
+          "if_catering_or_large_order": "warm_transfer_manager",
+          "if_new_order_and_user_said_pickup": "confirm_pickup_shortcut",
+          "if_new_order_and_user_said_delivery": "ask_address",
+          "else": "pickup_or_delivery"
+        }
+      },
+      {
+        "id": "online_order_confirm",
+        "action": "ask",
+        "message": "Sure—are you confirming an online order? May I have the name or phone number on the order?",
+        "actions": {
+          "details_provided": {
+            "next_step": "online_access_guard"
+          }
+        }
+      },
+      {
+        "id": "online_access_guard",
+        "action": "guard",
+        "message": "Check POS/online-orders access.",
+        "condition": "tool:online_orders_access == available",
+        "actions": {
+          "true": {
+            "next_step": "lookup_online_order"
+          },
+          "false": {
+            "next_step": "warm_transfer_for_online"
+          }
+        }
+      },
+      {
+        "id": "lookup_online_order",
+        "action": "function",
+        "function": "fetch_online_order",
+        "params": {
+          "lookup_key": "caller_name_or_phone"
+        },
+        "actions": {
+          "found": {
+            "next_step": "confirm_online_order_status"
+          },
+          "not_found": {
+            "next_step": "warm_transfer_for_online"
+          }
+        }
+      },
+      {
+        "id": "confirm_online_order_status",
+        "action": "inform",
+        "message": "I’ve confirmed your online order under {name}. It’s for pickup. Is there anything else you need?",
+        "next_step": "end_call"
+      },
+      {
+        "id": "warm_transfer_for_online",
+        "action": "transfer",
+        "message": "I’m sorry, I can’t access the online order details from here. I’ll connect you to the store to confirm right away.",
+        "transfer_to": "instructions.warm_transfer.transfer_number",
+        "next_step": "end_call"
+      },
+      {
+        "id": "warm_transfer_manager",
+        "action": "transfer",
+        "message": "Let me connect you to the store for that.",
+        "transfer_to": "instructions.warm_transfer.transfer_number",
+        "next_step": "end_call"
+      },
+      {
+        "id": "pickup_or_delivery",
+        "action": "ask",
+        "message": "Will this be for pickup or delivery?",
+        "actions": {
+          "pickup": {
+            "next_step": "confirm_pickup"
+          },
+          "delivery": {
+            "next_step": "ask_address"
+          }
+        }
+      },
+      {
+        "id": "confirm_pickup_shortcut",
+        "action": "inform",
+        "message": "Great—pickup it is.",
+        "next_step": "order_items"
+      },
+      {
+        "id": "ask_address",
+        "action": "ask",
+        "message": "Can I have your delivery address please?",
+        "actions": {
+          "address_received": {
+            "next_step": "checking_address"
+          }
+        }
+      },
+      {
+        "id": "checking_address",
+        "action": "inform",
+        "message": "Thanks, let me quickly check if your address is within our 2-mile delivery area…",
+        "next_step": "check_radius"
+      },
+      {
+        "id": "check_radius",
+        "action": "function",
+        "function": "calculate_distance",
+        "params": {
+          "restaurant_lat": 40.2679,
+          "restaurant_lng": -75.2115,
+          "customer_lat": "provided_by_customer",
+          "customer_lng": "provided_by_customer"
+        },
+        "condition": "distance <= 2",
+        "actions": {
+          "true": {
+            "next_step": "confirm_delivery"
+          },
+          "false": {
+            "next_step": "outside_radius"
+          }
+        }
+      },
+      {
+        "id": "confirm_delivery",
+        "action": "inform",
+        "message": "Great! Your address is within our delivery area. Let’s continue with your order.",
+        "next_step": "order_items"
+      },
+      {
+        "id": "outside_radius",
+        "action": "ask",
+        "message": "Sorry, your address is outside our 2-mile delivery area. Would you like to pick up your order instead?",
+        "actions": {
+          "yes": {
+            "next_step": "confirm_pickup"
+          },
+          "no": {
+            "next_step": "ask_alternate_address"
+          }
+        }
+      },
+      {
+        "id": "ask_alternate_address",
+        "action": "ask",
+        "message": "Do you have another delivery address within 2 miles of our Chalfont location? If not, we can still prepare it for pickup.",
+        "actions": {
+          "address_received": {
+            "next_step": "checking_address"
+          },
+          "no": {
+            "next_step": "confirm_pickup"
+          }
+        }
+      },
+      {
+        "id": "confirm_pickup",
+        "action": "inform",
+        "message": "Perfect, we’ll have your order ready for pickup at 4275 County Line Rd, Chalfont.",
+        "next_step": "order_items"
+      },
+      {
+        "id": "order_items",
+        "action": "collect",
+        "message": "What would you like to order today?",
+        "next_step": "validate_items"
+      },
+      {
+        "id": "validate_items",
+        "action": "function",
+        "function": "validate_order_items",
+        "params": {
+          "menus": "knowledge_base:restaurant_menus",
+          "customer_items": "provided_by_customer"
+        },
+        "condition": "all_items_valid",
+        "actions": {
+          "true": { "next_step": "price_with_tool_primary" },
+          "false": { "next_step": "handle_invalid_items" }
+        }
+      },
+
+      {
+        "id": "price_with_tool_primary",
+        "action": "function",
+        "function": "price_order_with_tool",
+        "params": {
+          "cart": "resolved_cart_lines_with_ids_variants_modifiers",
+          "utterance": "last_user_instruction_string"
+        },
+        "actions": {
+          "success": { "next_step": "confirm_order" },
+          "failure": { "next_step": "price_with_tool_fallback" }
+        }
+      },
+
+      {
+        "id": "price_with_tool_fallback",
+        "action": "function",
+        "function": "total_with_tool",
+        "params": {
+          "prices": "llm_compiled_prices_string"
+        },
+        "actions": {
+          "success": { "next_step": "confirm_order_total" },
+          "failure": { "next_step": "pricing_fallback" }
+        }
+      },
+
+      {
+        "id": "confirm_order_total",
+        "action": "confirm",
+        "message": "Here’s your total—Subtotal: ${tool_result.subtotal} USD, Tax: ${tool_result.tax} USD, Total: ${tool_result.total} USD. Is everything correct?",
+        "next_step": "capture_name_and_phone_conditionally"
+      },
+      {
+        "id": "pricing_fallback",
+        "action": "inform",
+        "message": "I’m having trouble calculating the total. I’ll connect you to the store to confirm pricing.",
+        "next_step": "warm_transfer_manager"
+      },
+      {
+        "id": "handle_invalid_items",
+        "action": "inform",
+        "message": "I’m sorry, one or more of those items are not available on our current menu. Could I suggest something else instead?",
+        "next_step": "order_items"
+      },
+      {
+        "id": "confirm_order",
+        "action": "confirm",
+        "message": "Let me confirm your order… {tool_result.lines_rendered}\nSubtotal: {tool_result.subtotal} {tool_result.currency}\nTax: {tool_result.tax} {tool_result.currency}\nTotal: {tool_result.total} {tool_result.currency}\nIs everything correct?",
+        "next_step": "capture_name_and_phone_conditionally"
+      },
+      {
+        "id": "capture_name_and_phone_conditionally",
+        "action": "branch",
+        "condition": "order_mode == 'delivery' || needs_callback || wants_text_receipt",
+        "actions": {
+          "true": {
+            "next_step": "customer_info_name_phone"
+          },
+          "false": {
+            "next_step": "customer_info_name_only"
+          }
+        }
+      },
+      {
+        "id": "customer_info_name_only",
+        "action": "ask",
+        "message": "Can I have your full name, please?",
+        "next_step": "maybe_payment"
+      },
+      {
+        "id": "customer_info_name_phone",
+        "action": "ask",
+        "message": "Can I have your full name and a phone number for the order?",
+        "next_step": "maybe_payment"
+      },
+      {
+        "id": "maybe_payment",
+        "action": "branch",
+        "condition": "wants_to_pay_by_phone == true",
+        "actions": {
+          "true": {
+            "next_step": "payment_details"
+          },
+          "false": {
+            "next_step": "cost_time"
+          }
+        }
+      },
+      {
+        "id": "payment_details",
+        "action": "ask",
+        "message": "I can take payment securely by phone. Please provide your card number, expiry date, CVV, and billing zip code.",
+        "next_step": "cost_time"
+      },
+      {
+        "id": "cost_time",
+        "action": "inform",
+        "message": "Your order will be ready in about 25 to 30 minutes for pickup, or 45 to 60 minutes for delivery.",
+        "next_step": "end_call"
+      },
+      {
+        "id": "end_call",
+        "action": "end",
+        "message": "Thank you for your call! Please visit alshamrestaurant.com for more. Goodbye!"
+      }
+    ]
+  }
+}

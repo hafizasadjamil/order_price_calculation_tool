@@ -1,0 +1,651 @@
+{
+  "id": "american-cuisine",
+  "name": "American Cuisine (Halal)",
+  "currency": "USD",
+  "notes": "Combo offer available on select categories. Keep decimal prices exactly as printed.",
+  "global_attributes": {
+    "spice_level": [
+      "none",
+      "mild",
+      "medium",
+      "spicy"
+    ]
+  },
+  "modifier_catalog": [
+    {
+      "id": "mod_combo_fries_can",
+      "name": "Make it a Combo (Fries & Can Soda)",
+      "price": 3.5
+    },
+    {
+      "id": "mod_sauce_hot",
+      "name": "Hot Sauce (side)"
+    },
+    {
+      "id": "mod_sauce_mild",
+      "name": "Mild Sauce (side)"
+    },
+    {
+      "id": "mod_sauce_honey_mustard",
+      "name": "Honey Mustard (side)"
+    },
+    {
+      "id": "mod_sauce_ranch",
+      "name": "Ranch (side)"
+    },
+    {
+      "id": "mod_sauce_bbq",
+      "name": "BBQ Sauce (side)"
+    },
+    {
+      "id": "mod_burger_add_cheese",
+      "name": "Add Cheese",
+      "price": 1,
+      "scope": "burgers"
+    }
+  ],
+  "categories": [
+    {
+      "id": "philly-steaks",
+      "name": "Philly Steaks",
+      "notes": "Make it a Combo with French Fries & Can Soda $3.50. Hot Peppers, Sweet Peppers, Pickles on the Side $0.75 Extra.",
+      "combo_prompt": true,
+      "combo_option_id": "mod_combo_fries_can",
+      "category_modifiers": [
+        {
+          "id": "mod_hot_peppers",
+          "name": "Hot Peppers",
+          "price": 0.75
+        },
+        {
+          "id": "mod_sweet_peppers",
+          "name": "Sweet Peppers",
+          "price": 0.75
+        },
+        {
+          "id": "mod_pickles",
+          "name": "Pickles",
+          "price": 0.75
+        },
+        {
+          "id": "mod_extra_cheese",
+          "name": "Extra Cheese",
+          "price": 0.75
+        }
+      ],
+      "items": [
+        {
+          "id": "ps-plain-steak",
+          "name": "Plain Steak",
+          "price": 10.99
+        },
+        {
+          "id": "ps-plain-steak-hoagie",
+          "name": "Plain Steak Hoagie",
+          "price": 12.99
+        },
+        {
+          "id": "ps-plain-steak-everything",
+          "name": "Plain Steak Everything",
+          "description": "With onion, pickles, sweet peppers, hot peppers, ketchup, mustard & mayo.",
+          "price": 13.99
+        },
+        {
+          "id": "ps-cheese-steak",
+          "name": "Cheese Steak",
+          "price": 11.99
+        },
+        {
+          "id": "ps-cheese-steak-hoagie",
+          "name": "Cheese Steak Hoagie",
+          "price": 12.99
+        },
+        {
+          "id": "ps-cheese-steak-everything",
+          "name": "Cheese Steak Everything",
+          "description": "With onion, pickles, sweet peppers, hot peppers, ketchup, mustard & mayo.",
+          "price": 13.99
+        },
+        {
+          "id": "ps-plain-chicken-steak",
+          "name": "Plain Chicken Steak",
+          "price": 11.99
+        },
+        {
+          "id": "ps-plain-chicken-steak-hoagie",
+          "name": "Plain Chicken Steak Hoagie",
+          "price": 12.99
+        },
+        {
+          "id": "ps-plain-chicken-steak-everything",
+          "name": "Plain Chicken Steak Everything",
+          "description": "With onion, pickles, sweet peppers, hot peppers, ketchup, mustard & mayo.",
+          "price": 13.99
+        },
+        {
+          "id": "ps-chicken-cheesesteak",
+          "name": "Chicken Cheesesteak",
+          "price": 12.99
+        },
+        {
+          "id": "ps-chicken-cheesesteak-hoagie",
+          "name": "Chicken Cheesesteak Hoagie",
+          "price": 13.99
+        },
+        {
+          "id": "ps-chicken-cheesesteak-everything",
+          "name": "Chicken Cheesesteak Everything",
+          "description": "With onion, pickles, sweet peppers, hot peppers, ketchup, mustard & mayo.",
+          "price": 13.99
+        },
+        {
+          "id": "ps-plain-lamb-steak",
+          "name": "Plain Lamb Steak",
+          "price": 15.99
+        },
+        {
+          "id": "ps-plain-lamb-steak-hoagie",
+          "name": "Plain Lamb Steak Hoagie",
+          "price": 16.99
+        },
+        {
+          "id": "ps-plain-lamb-steak-everything",
+          "name": "Plain Lamb Steak Everything",
+          "description": "With onion, pickles, sweet peppers, hot peppers, ketchup, mustard & mayo.",
+          "price": 17.99
+        },
+        {
+          "id": "ps-lamb-cheesesteak",
+          "name": "Lamb Cheesesteak",
+          "price": 16.99
+        },
+        {
+          "id": "ps-lamb-cheesesteak-hoagie",
+          "name": "Lamb Cheesesteak Hoagie",
+          "price": 17.99
+        },
+        {
+          "id": "ps-lamb-cheesesteak-everything",
+          "name": "Lamb Cheesesteak Everything",
+          "description": "With onion, pickles, sweet peppers, hot peppers, ketchup, mustard & mayo.",
+          "price": 18.99
+        },
+        {
+          "id": "ps-plain-buffalo-chicken-steak",
+          "name": "Plain Buffalo Chicken Steak",
+          "description": "No cheese. Marinated chicken with hot sauce.",
+          "price": 12.99,
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "ps-buffalo-chicken-cheesesteak",
+          "name": "Buffalo Chicken Cheesesteak",
+          "description": "Marinated chicken with buffalo hot sauce & bleu cheese.",
+          "price": 12.99,
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "ps-al-sham-steak",
+          "name": "Al-Sham Steak",
+          "description": "Hot & sweet peppers, onions, green peppers, mushrooms, pepperoni & cheese.",
+          "price": 13.99
+        },
+        {
+          "id": "ps-pizza-steak",
+          "name": "Pizza Steak",
+          "description": "Pizza sauce & mozzarella cheese.",
+          "price": 12.99
+        },
+        {
+          "id": "ps-desi-cheesesteak",
+          "name": "Desi Cheesesteak",
+          "description": "(Chicken or Beef) Spices, chili peppers & fried onion. Spicy.",
+          "price": 13.99,
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "ps-salmon-cheesesteak",
+          "name": "Salmon Cheesesteak",
+          "price": 17.99
+        }
+      ],
+      "notes_footer": "Extra Meat: Beef/Chicken $5.00 • Salmon $8.99 • Lamb $7.00 • Extra Cheese $0.75"
+    },
+    {
+      "id": "burgers",
+      "name": "Burgers",
+      "notes": "Make it a Combo with French Fries & Can Soda $3.50. Add Beef Bacon (2) $2.29.",
+      "combo_prompt": true,
+      "combo_option_id": "mod_combo_fries_can",
+      "category_modifiers": [
+        {
+          "id": "mod_beef_bacon",
+          "name": "Add Beef Bacon (2)",
+          "price": 2.29
+        }
+      ],
+      "items": [
+        {
+          "id": "bg-burger",
+          "name": "Burger (No Cheese)",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 6.99
+        },
+        {
+          "id": "bg-burger-deluxe",
+          "name": "Burger Deluxe (No Cheese)",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 7.99
+        },
+        {
+          "id": "bg-cheeseburger",
+          "name": "Cheeseburger",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 7.99
+        },
+        {
+          "id": "bg-cheeseburger-deluxe",
+          "name": "Cheeseburger Deluxe",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 8.99
+        },
+        {
+          "id": "bg-double-burger",
+          "name": "Double Burger (No Cheese)",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 10.99
+        },
+        {
+          "id": "bg-double-burger-deluxe",
+          "name": "Double Burger Deluxe (No Cheese)",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 11.99
+        },
+        {
+          "id": "bg-double-cheeseburger",
+          "name": "Double Cheeseburger",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 11.99
+        },
+        {
+          "id": "bg-double-cheeseburger-deluxe",
+          "name": "Double Cheeseburger Deluxe",
+          "description": "Served with lettuce, tomatoes, onions & pickles.",
+          "price": 12.99
+        },
+        {
+          "id": "bg-alsham-cheeseburger",
+          "name": "Al-Sham Cheeseburger",
+          "description": "Special sauce, cheese, lettuce, tomato, onions & pickles.",
+          "price": 8.99
+        },
+        {
+          "id": "bg-spicy-cheeseburger",
+          "name": "Spicy Cheeseburger",
+          "description": "Garlic & red sauce, long hots, onion, pickles, tomato & lettuce.",
+          "price": 8.99,
+          "attributes": [
+            "spice_level"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "buffalo-wings",
+      "name": "Buffalo Wings",
+      "notes": "Served with Bleu cheese & celery. Choice of Hot, Mild, Honey Mustard or BBQ.",
+      "combo_prompt": false,
+      "category_modifiers": [
+        "mod_sauce_hot",
+        "mod_sauce_mild",
+        "mod_sauce_honey_mustard",
+        "mod_sauce_bbq"
+      ],
+      "items": [
+        {
+          "id": "bw-5-combo",
+          "name": "Buffalo Wings (5 pcs) — with French fries & can of soda",
+          "price": 10.99
+        },
+        {
+          "id": "bw-10",
+          "name": "Buffalo Wings (10 pcs)",
+          "price": 13.99
+        },
+        {
+          "id": "bw-15",
+          "name": "Buffalo Wings (15 pcs)",
+          "price": 19.99
+        },
+        {
+          "id": "bw-20",
+          "name": "Buffalo Wings (20 pcs)",
+          "price": 25.99
+        },
+        {
+          "id": "bw-25",
+          "name": "Buffalo Wings (25 pcs)",
+          "price": 32.99
+        }
+      ]
+    },
+    {
+      "id": "breaded-wings",
+      "name": "Breaded Wings",
+      "notes": "Choice of Hot, Mild, Honey Mustard, Ranch or BBQ Sauce. Served with French fries & can of soda for 5 pcs option.",
+      "category_modifiers": [
+        "mod_sauce_hot",
+        "mod_sauce_mild",
+        "mod_sauce_honey_mustard",
+        "mod_sauce_ranch",
+        "mod_sauce_bbq"
+      ],
+      "items": [
+        {
+          "id": "brw-5-combo",
+          "name": "Breaded Wings (5 pcs) — with French fries & can of soda",
+          "price": 10.99
+        },
+        {
+          "id": "brw-10",
+          "name": "Breaded Wings (10 pcs)",
+          "price": 13.99
+        },
+        {
+          "id": "brw-15",
+          "name": "Breaded Wings (15 pcs)",
+          "price": 19.99
+        },
+        {
+          "id": "brw-20",
+          "name": "Breaded Wings (20 pcs)",
+          "price": 25.99
+        },
+        {
+          "id": "brw-25",
+          "name": "Breaded Wings (25 pcs)",
+          "price": 32.99
+        }
+      ]
+    },
+    {
+      "id": "fingers",
+      "name": "Fingers",
+      "notes": "Choice of Hot, Mild, Honey Mustard, Ranch or BBQ Sauce. Served with French fries & can of soda for 5 pcs option.",
+      "category_modifiers": [
+        "mod_sauce_hot",
+        "mod_sauce_mild",
+        "mod_sauce_honey_mustard",
+        "mod_sauce_ranch",
+        "mod_sauce_bbq"
+      ],
+      "items": [
+        {
+          "id": "fg-5-combo",
+          "name": "Fingers (5 pcs) — with French fries & can of soda",
+          "price": 11.99
+        },
+        {
+          "id": "fg-10",
+          "name": "Fingers (10 pcs)",
+          "price": 15.99
+        },
+        {
+          "id": "fg-15",
+          "name": "Fingers (15 pcs)",
+          "price": 22.99
+        },
+        {
+          "id": "fg-20",
+          "name": "Fingers (20 pcs)",
+          "price": 29.99
+        },
+        {
+          "id": "fg-25",
+          "name": "Fingers (25 pcs)",
+          "price": 37.99
+        }
+      ]
+    },
+    {
+      "id": "nuggets",
+      "name": "Nuggets",
+      "notes": "Choice side of Hot, Mild, Honey Mustard, Ranch or BBQ Sauce.",
+      "category_modifiers": [
+        "mod_sauce_hot",
+        "mod_sauce_mild",
+        "mod_sauce_honey_mustard",
+        "mod_sauce_ranch",
+        "mod_sauce_bbq"
+      ],
+      "items": [
+        {
+          "id": "ng-5-combo",
+          "name": "Nuggets (5 pcs) — with French fries & can of soda",
+          "price": 10.99
+        },
+        {
+          "id": "ng-10",
+          "name": "Nuggets (10 pcs)",
+          "price": 5.99
+        },
+        {
+          "id": "ng-15",
+          "name": "Nuggets (15 pcs)",
+          "price": 6.99
+        },
+        {
+          "id": "ng-20",
+          "name": "Nuggets (20 pcs)",
+          "price": 8.99
+        },
+        {
+          "id": "ng-25",
+          "name": "Nuggets (25 pcs)",
+          "price": 10.99
+        }
+      ]
+    },
+    {
+      "id": "beverages",
+      "name": "Beverages",
+      "notes": "Wide selection of bottled and canned drinks, Arabic hot drinks, and homemade lassi. All prices are per unit unless specified.",
+      "items": [
+        {
+          "id": "bev-water",
+          "name": "Water",
+          "price": 1.99
+        },
+        {
+          "id": "bev-ayran",
+          "name": "Ayran (Yogurt Drink)",
+          "price": 3.69
+        },
+        {
+          "id": "bev-brazilia",
+          "name": "Brazilia",
+          "price": 2.99
+        },
+        {
+          "id": "bev-can-soda",
+          "name": "Can Soda (Pepsi, Coke, Sprite, Sunkist, Brisk-T, Vinto, Ginger Ale, Diet Coke, Mt. Dew)",
+          "price": 1.99
+        },
+        {
+          "id": "bev-laziza",
+          "name": "Laziza (Non-alcoholic Malt - Wheat, Apple, Raspberry, Peach)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-bottle-soda",
+          "name": "20 oz Bottle Soda (Pepsi, Coke, Sprite, Mt. Dew, Ginger Ale, Sunkist, Brisk Ice-T, Diet Soda, or Fruit Punch)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-glass-bottle",
+          "name": "Glass Bottles (Sprite, Coke, Pepsi, Fanta, Jorritos)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-mistic",
+          "name": "Mistic (Fruit Punch, Lotta Colada, Mango Carrot, Mango Mania, Kiwi Strawberry, Grape Strawberry)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-snapple",
+          "name": "Snapple (Lemon Tea, Peach Tea, Mango Tea, Raspberry Tea, or Snapple Apple)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-nantucket",
+          "name": "Nantucket (Pomegranate Pear, Apple, Lemonade, Orange, Big Cranberry, Red Plum, Peach Orange, or Orange Mango)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-aloe",
+          "name": "Aloe Drink (Original, Pomegranate, Strawberry, Pineapple, or Mango)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-best",
+          "name": "Best (Arabic Fruit Drink - Mango, Guava, or Cocktail)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-arabic-tea",
+          "name": "Arabic Tea (with Mint & Sugar)",
+          "price": 2.69
+        },
+        {
+          "id": "bev-arabic-coffee",
+          "name": "Arabic Coffee (Brewed Arabic Coffee Bean with Sugar)",
+          "price": 2.99
+        },
+        {
+          "id": "bev-lassi",
+          "name": "Homemade Lassi (Mango, Sweet Mango, Strawberry Banana, Pineapple Coconut, Mixed Lassi)",
+          "price": 5.99
+        }
+      ]
+    },
+    {
+      "id": "desserts",
+      "name": "Desserts",
+      "notes": "Freshly made desserts and traditional sweets.",
+      "items": [
+        {
+          "id": "des-cheesecake",
+          "name": "Cheese Cake",
+          "price": 3.99
+        },
+        {
+          "id": "des-strawberry-cheesecake",
+          "name": "Cheese Cake with Strawberry",
+          "price": 4.99
+        },
+        {
+          "id": "des-cake",
+          "name": "Cake (Carrot or Chocolate)",
+          "price": 3.99,
+          "variants": [
+            {
+              "id": "Carrot",
+              "name": "Carrot"
+            },
+            {
+              "id": "Chocolate",
+              "name": "Chocolate"
+            }
+          ]
+        },
+        {
+          "id": "des-baklava",
+          "name": "Baklava (1Piece)",
+          "price": 4.99
+        }
+      ]
+    },
+    {
+      "id": "specials",
+      "name": "Specials (Family Trays)",
+      "notes": "Exact contents/prices per image; +tax applies.",
+      "items": [
+        {
+          "id": "sp-1",
+          "name": "Special #1",
+          "description": "Large Hummus, Large Tabouli Salad, Grape Leaves (10 pcs), Falafel (8 pcs), Spinach Pie (4 pcs)",
+          "price": 44.99,
+          "needs_review": false
+        },
+        {
+          "id": "sp-2",
+          "name": "Special #2",
+          "description": "3 Chicken Kofta, 3 Chicken Kebab, 3 Beef Kebab, 1 Arabic Salad, 1 Large Hummus, 1 Large French Fries",
+          "price": 69.99,
+          "needs_review": true
+        },
+        {
+          "id": "sp-3",
+          "name": "Special #3",
+          "description": "Large Fatoush, Baba Ghanouj, Meat Pie (4 pcs), Cheese Pie (4 pcs), Kibbee (4 pcs)",
+          "price": 44.99,
+          "needs_review": false
+        },
+        {
+          "id": "sp-4",
+          "name": "Special #4",
+          "description": "Mixed Grill (10 pcs), Large Hummus, Large Arabic Salad, Falafel (10 pcs), 8 Pitas",
+          "price": 80.99,
+          "needs_review": true
+        }
+      ]
+    }
+  ],
+  "alias_map": {
+    "ps-cheese-steak": [
+      "cheesesteak",
+      "philly cheesesteak"
+    ],
+    "ps-chicken-cheesesteak": [
+      "chicken cheesesteak",
+      "chicken philly"
+    ],
+    "ps-buffalo-chicken-cheesesteak": [
+      "buffalo chicken philly",
+      "spicy chicken philly"
+    ],
+    "bg-burger-single": [
+      "hamburger",
+      "single burger"
+    ],
+    "bg-cheeseburger": [
+      "cheese burger"
+    ],
+    "bg-spicy-chicken-burger": [
+      "spicy chicken sandwich",
+      "spicy burger"
+    ],
+    "bw-10": [
+      "10 piece wings",
+      "10 pc wings"
+    ],
+    "brw-10": [
+      "10 piece breaded wings",
+      "breaded wings 10"
+    ],
+    "fg-10": [
+      "10 fingers",
+      "ten fingers"
+    ],
+    "ng-20": [
+      "20 nuggets",
+      "twenty nuggets"
+    ]
+  }
+}

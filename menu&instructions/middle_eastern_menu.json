@@ -1,0 +1,1826 @@
+{
+  "meta": {
+    "restaurant": "Middle Eastern Cuisine (Halal)",
+    "currency": "USD",
+    "tax_included": false,
+    "version": "2025-10-10+edgefixes"
+  },
+  "constraints": {
+    "must_use_canonical_ids": true,
+    "reject_unlisted_items": true,
+    "ask_clarifying_if_no_match": true,
+    "disallow_cross_category_collisions": true,
+    "spice_toggle_updates_line": true,
+    "dedupe_mutations": true,
+    "never_round_prices": true
+  },
+  "nlp_policies": {
+    "category_preference": [
+      {
+        "phrase_group": [
+          "ny",
+          "new york",
+          "street style"
+        ],
+        "prefer_category_ids": [
+          "new-york"
+        ]
+      },
+      {
+        "phrase_group": [
+          "arabic",
+          "pita",
+          "sandwich"
+        ],
+        "prefer_category_ids": [
+          "arabic-sandwiches"
+        ]
+      },
+      {
+        "phrase_group": [
+          "long roll",
+          "long-roll",
+          "roll"
+        ],
+        "prefer_category_ids": [
+          "long-roll"
+        ]
+      },
+      {
+        "phrase_group": [
+          "entrée",
+          "entree",
+          "plate",
+          "platter"
+        ],
+        "prefer_category_ids": [
+          "entrees"
+        ]
+      },
+      {
+        "phrase_group": [
+          "hoagie"
+        ],
+        "prefer_category_ids": [
+          "hoagies"
+        ]
+      },
+      {
+        "phrase_group": [
+          "wrap"
+        ],
+        "prefer_category_ids": [
+          "wraps"
+        ]
+      },
+      {
+        "phrase_group": [
+          "salad"
+        ],
+        "prefer_category_ids": [
+          "salads-1",
+          "salads-2"
+        ]
+      }
+    ],
+    "tie_breaker": "prefer_exact_alias_match_then_category_preference",
+    "reference_resolution": {
+      "last_line_window_turns": 2,
+      "implicit_update_phrases": [
+        "make it",
+        "change it",
+        "actually",
+        "instead",
+        "that one",
+        "the last one",
+        "make this"
+      ],
+      "add_new_item_phrases": [
+        "also add",
+        "another",
+        "add one more",
+        "and one more"
+      ]
+    }
+  },
+  "pricing_policies": [
+    {
+      "id": "pack_optimizer",
+      "applies_to_item_ids": [
+        "app-kibbe",
+        "app-meat-pie",
+        "app-spinach-pie",
+        "app-cheese-pie",
+        "app-chicken-samosa",
+        "app-beef-samosa",
+        "app-veg-samosa"
+      ],
+      "trigger": {
+        "needs_total_pieces": true
+      },
+      "packs": [
+        {
+          "size": 4,
+          "variant_id": "four",
+          "unit_price": 9.99
+        },
+        {
+          "size": 1,
+          "variant_id": "single",
+          "unit_price": 2.79
+        }
+      ],
+      "optimize": "min_price_exact_quantity",
+      "allow_mixed_packs": true,
+      "apply_silently": true,
+      "ui": {
+        "do_not_prompt_pack_choice": true,
+        "do_not_prompt_savings_confirmation": true
+      },
+      "respect_user_constraint": {
+        "block_optimizer_if_regex": [
+          "\\bsingle(s)?\\s*only\\b",
+          "\\bno\\s*bundle(s)?\\b",
+          "\\bno\\s*deal(s)?\\b"
+        ]
+      },
+      "render_lines": "split_by_pack",
+      "line_format": "{packs_of_4}× (4 pcs) + {singles}× (1 pc)"
+    }
+  ],
+  "global_attributes": {
+    "presets": {
+      "spice_4": [
+        "none",
+        "mild",
+        "medium",
+        "spicy"
+      ],
+      "spice_2": [
+        "mild",
+        "spicy"
+      ],
+      "no_spice": []
+    },
+    "rice_type": [
+      "yellow",
+      "brown"
+    ],
+    "serving_style": [
+      "sauce_on_top",
+      "meat_on_side"
+    ]
+  },
+  "validation": {
+    "enforce_allowed_values": true,
+    "on_disallowed": "ask_clarifying"
+  },
+  "modifier_catalog": [
+    {
+      "id": "mod_extra_white_sauce",
+      "name": "Extra White Sauce ",
+      "price": 0.5
+    },
+    {
+      "id": "mod_hg_sweet_peppers",
+      "name": "Sweet Peppers (Hoagie)",
+      "price": 0.75
+    },
+    {
+      "id": "mod_extra_red_sauce",
+      "name": "Extra Red Sauce",
+      "price": 0.5
+    },
+    {
+      "id": "mod_sub_rice_yellow",
+      "name": "Substitute Yellow Rice",
+      "price": 0
+    },
+    {
+      "id": "mod_sub_rice_brown",
+      "name": "Substitute Brown Rice",
+      "price": 0
+    },
+    {
+      "id": "mod_extra_garlic_sauce",
+      "name": "Extra Garlic Sauce",
+      "price": 0.75
+    },
+    {
+      "id": "mod_tahina_sauce",
+      "name": "Tahina Sauce",
+      "price": 0.75
+    },
+    {
+      "id": "mod_spicy_mint",
+      "name": "Spicy Mint",
+      "price": 0.75
+    },
+    {
+      "id": "mod_cucumber_yogurt",
+      "name": "Cucumber Yogurt",
+      "price": 0.75
+    },
+    {
+      "id": "mod_extra_pita",
+      "name": "Extra Pita",
+      "price": 0.75
+    },
+    {
+      "id": "mod_lr_pickles",
+      "name": "Pickles (Long Roll)",
+      "price": 0.75
+    },
+    {
+      "id": "mod_lr_turnips",
+      "name": "Turnips (Long Roll)",
+      "price": 0.75
+    },
+    {
+      "id": "mod_hg_hot_peppers",
+      "name": "Hot Peppers (Hoagie)",
+      "price": 0.75
+    },
+    {
+      "id": "mod_hg_pickles",
+      "name": "Pickles (Hoagie)",
+      "price": 0.75
+    },
+    {
+      "id": "mod_hg_cheese",
+      "name": "Extra Cheese (Hoagie)",
+      "price": 0.75
+    },
+    {
+      "id": "mod_ny_extra_rice_on_platter",
+      "name": "Extra Rice on Platter",
+      "price": 1
+    },
+    {
+      "id": "mod_ny_extra_chicken",
+      "name": "Extra Chicken (NY)",
+      "price": 2
+    },
+    {
+      "id": "mod_ny_extra_lamb",
+      "name": "Extra Lamb (NY)",
+      "price": 2
+    },
+    {
+      "id": "mod_ny_extra_fish",
+      "name": "Extra NY Fish",
+      "price": 4
+    },
+    {
+      "id": "mod_ny_extra_shrimp",
+      "name": "Extra Shrimp (NY)",
+      "price": 5
+    },
+    {
+      "id": "mod_ny_extra_salmon",
+      "name": "Extra Salmon (NY)",
+      "price": 9.99
+    },
+    {
+      "id": "mod_ny_extra_falafel",
+      "name": "Extra Falafel (NY)",
+      "price": 1.99
+    }
+  ],
+  "combo_policy": {
+    "ask_instead_of_auto_add": true,
+    "combo_prompt_text": "Would you like to make it a Combo (Fries + Can of Soda) for $3.50?",
+    "combo_extra": {
+      "id": "mod_combo_fries_can",
+      "name": "Combo (Fries + Can Soda)",
+      "price": 3.5
+    },
+    "applies_to_category_ids": [
+      "long-roll",
+      "arabic-sandwiches",
+      "maroosh",
+      "quesadillas",
+      "hoagies"
+    ],
+    "excluded_category_ids": [
+      "wraps"
+    ]
+  },
+  "disambiguations": [
+    {
+      "phrase": "chicken shawarma",
+      "candidates": [
+        {
+          "item_id": "as-chicken-shawarma",
+          "category_id": "arabic-sandwiches",
+          "hint": "Arabic Sandwich"
+        },
+        {
+          "item_id": "lr-chicken-shawarma",
+          "category_id": "long-roll",
+          "hint": "Long Roll"
+        },
+        {
+          "item_id": "entree-chicken-shawarma",
+          "category_id": "entrees",
+          "hint": "Entrée Platter"
+        },
+        {
+          "item_id": "sal-chicken-shawarma",
+          "category_id": "salads-2",
+          "hint": "Salad"
+        }
+      ],
+      "question": "Do you want Chicken Shawarma as Arabic Sandwich, Long Roll, Entrée, or Salad?"
+    },
+    {
+      "phrase": "kofta",
+      "candidates": [
+        {
+          "item_id": "as-chicken-or-beef-kebab",
+          "category_id": "arabic-sandwiches",
+          "hint": "Arabic Sandwich"
+        },
+        {
+          "item_id": "lr-beef-kofta",
+          "category_id": "long-roll",
+          "hint": "Long Roll"
+        },
+        {
+          "item_id": "entree-beef-kofta",
+          "category_id": "entrees",
+          "hint": "Entrée Platter"
+        },
+        {
+          "item_id": "sal-beef-kofta",
+          "category_id": "salads-2",
+          "hint": "Salad"
+        }
+      ],
+      "question": "Kofta as Arabic Sandwich, Long Roll, Entrée, or Salad?"
+    },
+    {
+      "phrase": "falafel salad",
+      "candidates": [
+        {
+          "item_id": "sal-falafel",
+          "category_id": "salads-2",
+          "hint": "House Salad"
+        },
+        {
+          "item_id": "salad-falafel-over-arabic-salad",
+          "category_id": "salads-1",
+          "hint": "Over Arabic Salad"
+        }
+      ],
+      "question": "Falafel Salad (house salad) or Falafel over Arabic Salad?"
+    },
+    {
+      "phrase": "soup",
+      "candidates": [
+        {
+          "item_id": "soup-lentil",
+          "category_id": "soup",
+          "hint": "Lentil Soup"
+        },
+        {
+          "item_id": "side-soup",
+          "category_id": "side-orders",
+          "hint": "Soup of the Day (Side)"
+        }
+      ],
+      "question": "Lentil Soup or Soup of the Day?"
+    }
+  ],
+  "alias_map": {
+    "ny-chicken": [
+      "ny chicken",
+      "chicken over rice",
+      "chicken platter",
+      "chicken gyro over rice",
+      "chicken rice"
+    ],
+    "ny-gyro": [
+      "gyro over rice",
+      "beef and lamb gyro over rice",
+      "gyro platter"
+    ],
+    "ny-falafel": [
+      "falafel over rice",
+      "falafel platter"
+    ],
+    "as-chicken-shawarma": [
+      "chicken shawarma wrap",
+      "arabic chicken shawarma",
+      "shawerma wrap"
+    ],
+    "lr-chicken-shawarma": [
+      "shawarma long roll",
+      "chicken long roll"
+    ],
+    "entree-chicken-shawarma": [
+      "chicken shawarma plate",
+      "chicken shawarma platter"
+    ],
+    "sal-chicken-shawarma": [
+      "chicken shawarma salad"
+    ],
+    "hg-gyro": [
+      "gyro hoagie",
+      "beef and lamb hoagie"
+    ],
+    "wrp-gyro": [
+      "gyro wrap",
+      "beef and lamb wrap"
+    ],
+    "app-al-sham-sampler": [
+      "al-sham sampler",
+      "sham sampler",
+      "sampler platter"
+    ],
+    "app-kibbe": [
+      "kibbe",
+      "kibbeh",
+      "kibbe 1 pc",
+      "one kibbe"
+    ],
+    "app-baba-ghanouj": [
+      "baba ghanoush",
+      "eggplant dip"
+    ]
+  },
+  "categories": [
+    {
+      "id": "appetizers",
+      "name": "Appetizers",
+      "items": [
+        {
+          "id": "app-hummus",
+          "name": "Hummus",
+          "description": "Ground chickpeas topped with olive oil, served with pita.",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 7.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 9.99
+            }
+          ],
+          "options_allowed": [
+            "mod_extra_garlic_sauce",
+            "mod_tahina_sauce",
+            "mod_spicy_mint",
+            "mod_cucumber_yogurt",
+            "mod_extra_pita"
+          ]
+        },
+        {
+          "id": "app-hummus-chicken-shawarma",
+          "name": "Hummus w/ Chicken Shawarma",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 9.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 11.99
+            }
+          ]
+        },
+        {
+          "id": "app-hummus-lamb",
+          "name": "Hummus w/ Lamb",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 9.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 12.99
+            }
+          ]
+        },
+        {
+          "id": "app-baba-ghanouj",
+          "name": "Baba Ghanouj",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 7.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 10.99
+            }
+          ]
+        },
+        {
+          "id": "app-grape-leaves",
+          "name": "Grape Leaves",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small ",
+              "price": 7.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 12.99
+            }
+          ]
+        },
+        {
+          "id": "app-falafel-2pc",
+          "name": "Falafel (2 pcs)",
+          "price": 1.99,
+          "description": "Fresh ground chickpeas and fried."
+        },
+        {
+          "id": "app-chicken-kebab-1stk",
+          "name": "Chicken Kebab (1 Stk)",
+          "price": 4.99,
+          "description": "Marinated chicken cubes."
+        },
+        {
+          "id": "app-beef-kebab-1stk",
+          "name": "Beef Kebab (1 Stk)",
+          "price": 5.99,
+          "description": "Marinated beef cubes."
+        },
+        {
+          "id": "app-lamb-kebab-1stk",
+          "name": "Lamb Kebab (1 Stk)",
+          "price": 6.99,
+          "description": "Marinated lamb cubes."
+        },
+        {
+          "id": "app-chicken-kofta-1stk",
+          "name": "Chicken Kofta Kebab (1 Stk)",
+          "price": 3.99,
+          "description": "Seasoned ground meat."
+        },
+        {
+          "id": "app-beef-kofta-1stk",
+          "name": "Beef Kofta Kebab (1 Stk)",
+          "price": 4.99,
+          "description": "Seasoned ground meat."
+        },
+        {
+          "id": "app-mixed-pickles",
+          "name": "Mixed Pickles (Turnips, Pickles & Whole Olives)",
+          "price": 3.99
+        },
+        {
+          "id": "app-kibbe",
+          "name": "Kibbe",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "four",
+              "name": "(4 Pcs)",
+              "price": 9.99
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-meat-pie",
+          "name": "Meat Pie",
+          "description": "Dough filled with ground beef, onion, almonds.",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "four",
+              "name": "(4 Pcs)",
+              "price": 9.99
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-spinach-pie",
+          "name": "Spinach Pie",
+          "description": "Dough filled with spinach & onion.",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "four",
+              "name": "(4 Pcs)",
+              "price": 8.99
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-cheese-pie",
+          "name": "Cheese Pie",
+          "description": "Dough filled with mozzarella & feta.",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "four",
+              "name": "(4 Pcs)",
+              "price": 8.99
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-chicken-samosa",
+          "name": "Chicken Samosa",
+          "description": "Spring wrap with chicken & veggies.",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "five",
+              "name": "(5 Pcs)",
+              "price": 11.99
+            }
+          ],
+          "attributes": [
+            {
+              "id": "spice_level",
+              "allowed": [
+                "mild",
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-beef-samosa",
+          "name": "Beef Samosa",
+          "description": "Spring wrap with beef & veggies.",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "five",
+              "name": "(5 Pcs)",
+              "price": 11.99
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-veg-samosa",
+          "name": "Veggie Samosa",
+          "description": "Spring wrap with mixed veggies.",
+          "variants": [
+            {
+              "id": "single",
+              "name": "(1 Pc)",
+              "price": 2.79
+            },
+            {
+              "id": "five",
+              "name": "(5 Pcs)",
+              "price": 11.99
+            }
+          ],
+          "supports_pack_optimizer": true
+        },
+        {
+          "id": "app-dolma-6pc",
+          "name": "Dolma (6 pcs)",
+          "price": 4.99
+        },
+        {
+          "id": "app-al-sham-sampler",
+          "name": "Al-Sham Sampler",
+          "price": 15.99,
+          "is_combo": true,
+          "description": "Includes 2 Spinach Pies, 2 Meat Pies, 2 Cheese Pies, 2 Kibbe.",
+          "components": [
+            {
+              "id": "spinach_pie",
+              "name": "Spinach Pie",
+              "base_qty": 1,
+              "extra_unit_price": 2.79
+            },
+            {
+              "id": "meat_pie",
+              "name": "Meat Pie",
+              "base_qty": 1,
+              "extra_unit_price": 2.79
+            },
+            {
+              "id": "cheese_pie",
+              "name": "Cheese Pie",
+              "base_qty": 1,
+              "extra_unit_price": 2.79
+            },
+            {
+              "id": "kibbe",
+              "name": "Kibbe",
+              "base_qty": 1,
+              "extra_unit_price": 2.79
+            }
+          ],
+          "component_pricing_rule": "charge (requested - base_qty) × extra_unit_price if requested > base_qty; no discount for less"
+        },
+        {
+          "id": "app-mixed-taste",
+          "name": "Mixed Taste",
+          "price": 15.99,
+          "description": "Baba ghanoush, hummus, tabouli, (4pc) grape leaves, (4pc) falafel. Served with pita."
+        }
+      ]
+    },
+    {
+      "id": "soup",
+      "name": "Lentil Soup",
+      "items": [
+        {
+          "id": "soup-lentil",
+          "name": "Lentil Soup",
+          "price": 4.49
+        }
+      ]
+    },
+    {
+      "id": "salads-1",
+      "name": "Salads (Panel A)",
+      "items": [
+        {
+          "id": "salad-tabouli",
+          "name": "Tabouli",
+          "description": "Cracked wheat, chopped parsley, onion, tomatoes, cucumber with olive oil & lemon juice.",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 10.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 14.99
+            }
+          ]
+        },
+        {
+          "id": "salad-fatoush",
+          "name": "Fatoush",
+          "description": "Crunchy pita over fresh chopped tomatoes, cucumber, lettuce, onion, green pepper, radish with homemade dressing.",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 8.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 12.99
+            }
+          ]
+        },
+        {
+          "id": "salad-arabic-salad",
+          "name": "Arabic Salad",
+          "description": "Fresh chopped tomatoes, cucumber, lettuce, onion, green pepper, radish with homemade dressing.",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 7.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 11.99
+            }
+          ]
+        },
+        {
+          "id": "salad-chicken-shawerma-over-arabic",
+          "name": "Chicken Shawerma Over Arabic Salad & side garlic sauce",
+          "price": 14.99
+        },
+        {
+          "id": "salad-lamb-or-mixed-shawerma-over-arabic",
+          "name": "Lamb or Mixed Shawerma Over Arabic Salad & side garlic sauce",
+          "price": 15.99
+        },
+        {
+          "id": "salad-lamb-kebab-over-arabic",
+          "name": "Lamb Kebab Over Arabic Salad & side garlic sauce",
+          "price": 18.99
+        },
+        {
+          "id": "salad-chicken-kebab-over-arabic",
+          "name": "Chicken Kebab Over Arabic Salad & side garlic sauce",
+          "price": 14.99
+        },
+        {
+          "id": "salad-beef-kebab-over-arabic",
+          "name": "Beef Kebab Over Arabic Salad & side garlic sauce",
+          "price": 16.99
+        },
+        {
+          "id": "salad-chicken-or-beef-kofta-over-arabic",
+          "name": "Chicken or Beef Kofta Over Arabic Salad & side garlic sauce",
+          "price": 14.99
+        },
+        {
+          "id": "salad-falafel-over-arabic",
+          "name": "Falafel Over Arabic Salad — served with tahina & hummus sauce",
+          "price": 12.99
+        }
+      ]
+    },
+    {
+      "id": "long-roll",
+      "name": "Long Roll",
+      "combo_prompt": true,
+      "notes": "Garlic sauce, lettuce, tomatoes & pickles. Paid extras: Pickles/Turnips $0.75.",
+      "category_modifiers": [
+        "mod_lr_pickles",
+        "mod_lr_turnips"
+      ],
+      "items": [
+        {
+          "id": "lr-chicken-kebab",
+          "name": "Chicken Kebab",
+          "price": 13.99
+        },
+        {
+          "id": "lr-beef-kofta",
+          "name": "Beef Kofta",
+          "price": 13.99
+        },
+        {
+          "id": "lr-beef-shawarma",
+          "name": "Beef Shawarma",
+          "price": 13.99
+        },
+        {
+          "id": "lr-chicken-shawarma",
+          "name": "Chicken Shawarma",
+          "price": 13.99
+        },
+        {
+          "id": "lr-lamb-kebab",
+          "name": "Lamb Kebab",
+          "price": 14.99
+        },
+        {
+          "id": "lr-mixed-shawarma",
+          "name": "Mixed Shawarma",
+          "price": 14.99
+        }
+      ]
+    },
+    {
+      "id": "arabic-sandwiches",
+      "name": "Arabic Sandwiches",
+      "combo_prompt": true,
+      "notes": "Arabic pita wrapped with garlic sauce, lettuce, tomato & pickles.",
+      "items": [
+        {
+          "id": "as-chicken-shawarma",
+          "name": "Chicken Shawerma",
+          "price": 9.99
+        },
+        {
+          "id": "as-lamb-shawarma",
+          "name": "Lamb Shawerma",
+          "price": 9.99
+        },
+        {
+          "id": "as-mixed-shawarma",
+          "name": "Mixed Shawerma",
+          "price": 8.99
+        },
+        {
+          "id": "as-chicken-or-beef-kofta",
+          "name": "Chicken or Beef Kofta",
+          "price": 8.99
+        },
+        {
+          "id": "as-chicken-kebab",
+          "name": "Chicken Kebab",
+          "price": 8.99
+        },
+        {
+          "id": "as-beef-kebab",
+          "name": "Beef Kebab",
+          "price": 8.99
+        },
+        {
+          "id": "as-lamb-kebab",
+          "name": "Lamb Kebab",
+          "price": 11.99
+        },
+        {
+          "id": "as-falafel",
+          "name": "Falafel",
+          "description": "Wrapped with hummus & tahina, chopped parsley, tomatoes, turnips & pickles.",
+          "price": 7.99
+        }
+      ],
+      "combo_option": {
+        "prompt": "Would you like to make it a combo (Fries & Can Soda) for $3.50?",
+        "price": 3.5
+      },
+      "extras": [
+        {
+          "id": "extra-garlic-sauce",
+          "name": "Garlic Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "extra-hummus",
+          "name": "Hummus",
+          "price": 0.75
+        },
+        {
+          "id": "extra-tahina-sauce",
+          "name": "Tahina Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "extra-pickles",
+          "name": "Pickles or Turnips",
+          "price": 0.75
+        }
+      ]
+    },
+    {
+      "id": "maroosh",
+      "name": "Maroosh",
+      "notes": "Long roll grilled on a panini grill. Served with garlic & white sauce, parsley, pickles & tomatoes.",
+      "combo_prompt": true,
+      "combo_option": {
+        "prompt": "Would you like to make it a Combo (Fries & Can Soda) for $3.50?",
+        "price": 3.5
+      },
+      "items": [
+        {
+          "id": "maroosh-chicken-onions",
+          "name": "Chicken w/ Onions",
+          "price": 13.99
+        },
+        {
+          "id": "maroosh-lamb-onions",
+          "name": "Lamb w/ Onions",
+          "price": 14.99
+        },
+        {
+          "id": "maroosh-falafel",
+          "name": "Falafel",
+          "price": 10.99
+        },
+        {
+          "id": "maroosh-salmon-onions",
+          "name": "Salmon w/ Onions",
+          "price": 17.99
+        },
+        {
+          "id": "maroosh-chicken-kofta",
+          "name": "Chicken Kofta",
+          "price": 14.99
+        },
+        {
+          "id": "maroosh-beef-kofta",
+          "name": "Beef Kofta",
+          "price": 14.99
+        },
+        {
+          "id": "maroosh-lamb-kebab",
+          "name": "Lamb Kebab",
+          "price": 17.99
+        }
+      ]
+    },
+    {
+      "id": "entrees",
+      "name": "Entrées",
+      "notes": "All entrées served with your choice of seasoned brown rice, yellow rice, or French fries. Comes with salad & pita. Extras: Garlic Sauce, Cucumber Sauce, Hummus Sauce, Tahina Sauce, or Spicy Mint Sauce $0.75 each.",
+      "attributes": [
+        "rice_type",
+        "spice_level"
+      ],
+      "category_modifiers": [
+        {
+          "id": "mod-extra-garlic-sauce",
+          "name": "Extra Garlic Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "mod-extra-cucumber-sauce",
+          "name": "Extra Cucumber Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "mod-extra-hummus-sauce",
+          "name": "Extra Hummus Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "mod-extra-tahina-sauce",
+          "name": "Extra Tahina Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "mod-extra-spicy-mint",
+          "name": "Extra Spicy Mint Sauce",
+          "price": 0.75
+        },
+        {
+          "id": "mod-extra-pita",
+          "name": "Extra Pita",
+          "price": 0.75
+        }
+      ],
+      "items": [
+        {
+          "id": "entree-chicken-kebab",
+          "name": "Chicken Kebab",
+          "description": "Char-broiled cubes of chicken served with garlic sauce.",
+          "price": 15.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-beef-kebab",
+          "name": "Beef Kebab",
+          "description": "Char-broiled cubes of beef served with garlic sauce.",
+          "price": 17.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-lamb-kebab",
+          "name": "Lamb Kebab",
+          "description": "Char-broiled cubes of lamb served with garlic sauce.",
+          "price": 19.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-chicken-kofta",
+          "name": "Chicken Kofta",
+          "description": "Ground chicken spiced & grilled served with garlic sauce.",
+          "price": 14.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-beef-kofta",
+          "name": "Beef Kofta",
+          "description": "Ground beef spiced & grilled served with garlic sauce.",
+          "price": 14.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-mixed-kebab",
+          "name": "Mixed Kebab",
+          "description": "Char-broiled mix kebabs served with garlic sauce.",
+          "variants": [
+            {
+              "id": "beef_chicken",
+              "name": "Beef & Chicken",
+              "price": 17.99
+            },
+            {
+              "id": "lamb_chicken",
+              "name": "Lamb & Chicken",
+              "price": 18.99
+            },
+            {
+              "id": "beef_lamb",
+              "name": "Beef & Lamb",
+              "price": 18.99
+            }
+          ],
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-chicken-shawerma",
+          "name": "Chicken Shawerma",
+          "description": "Marinated sliced chicken served with garlic sauce.",
+          "price": 14.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-beef-shawerma",
+          "name": "Beef Shawerma",
+          "description": "Marinated sliced beef served with tahina sauce.",
+          "price": 14.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-lamb-shawerma",
+          "name": "Lamb Shawerma",
+          "description": "Marinated sliced lamb served with tahina sauce.",
+          "price": 16.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-mixed-shawerma",
+          "name": "Mixed Shawerma",
+          "description": "Lamb & chicken shawerma served with garlic & tahina sauce.",
+          "price": 16.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-mixed-al-sham",
+          "name": "Mixed Al-Sham",
+          "description": "Lamb & chicken shawerma served with garlic & tahina sauce.",
+          "price": 19.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-lamb-chops",
+          "name": "Lamb Chops (2 pc)",
+          "description": "Grilled lamb chops served with salad & pita.",
+          "price": 19.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-falafel",
+          "name": "Falafel (6 pc)",
+          "description": "Served with hummus, tahina sauce & pita.",
+          "price": 13.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-grilled-steak",
+          "name": "Grilled Steak",
+          "description": "Served with garlic sauce.",
+          "price": 19.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-grilled-salmon",
+          "name": "Grilled Salmon",
+          "description": "Served with garlic sauce.",
+          "price": 18.99,
+          "attributes": [
+            "rice_type"
+          ]
+        },
+        {
+          "id": "entree-mixed-grilled-veg",
+          "name": "Mixed Grilled Veggies",
+          "description": "Grilled assorted vegetables served with hummus, tahina & pita.",
+          "price": 16.99,
+          "attributes": [
+            "rice_type"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "new-york",
+      "name": "New York",
+      "notes": "Recipes from the famous streets of New York. All platters served on seasoned brown rice. White & Red (spicy) sauce on top, or meat can come with salad.",
+      "category_modifiers": [
+        "mod_extra_white_sauce",
+        "mod_extra_red_sauce",
+        "mod_extra_rice_side",
+        "mod_sub_rice_yellow",
+        "mod_sub_rice_brown",
+        "mod_ny_extra_rice_on_platter",
+        "mod_extra_rice_side",
+        "mod_ny_extra_chicken",
+        "mod_ny_extra_lamb",
+        "mod_ny_extra_fish",
+        "mod_ny_extra_shrimp",
+        "mod_ny_extra_salmon",
+        "mod_ny_extra_falafel"
+      ],
+      "items": [
+        {
+          "id": "ny-chicken",
+          "name": "NY Chicken over Rice",
+          "description": "Over rice with onions.",
+          "variants": [
+            {
+              "id": "base",
+              "name": "Base",
+              "price": 9.99
+            },
+            {
+              "id": "al_sham",
+              "name": "Al-Sham Style (Long Hots & Onion)",
+              "price": 10.99
+            }
+          ],
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-falafel",
+          "name": "NY Falafel over Rice (5 pcs)",
+          "price": 9.99,
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-lamb",
+          "name": "NY Lamb over Rice",
+          "description": "Over rice with onions.",
+          "variants": [
+            {
+              "id": "base",
+              "name": "Base",
+              "price": 9.99
+            },
+            {
+              "id": "al_sham",
+              "name": "Al-Sham Style (Long Hots & Onion)",
+              "price": 11.99
+            }
+          ],
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-combo",
+          "name": "NY Combo (Chicken & Lamb) over Rice",
+          "description": "Over rice with onions.",
+          "variants": [
+            {
+              "id": "base",
+              "name": "Base",
+              "price": 9.99
+            },
+            {
+              "id": "al_sham",
+              "name": "Al-Sham Style (Long Hots & Onion)",
+              "price": 11.99
+            }
+          ],
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-fish",
+          "name": "NY Fish over Rice",
+          "description": "Over rice with onions & green peppers.",
+          "price": 9.99,
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-shrimp",
+          "name": "NY Shrimp over Rice",
+          "description": "Over rice with onions & green peppers.",
+          "price": 12.99,
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-salmon",
+          "name": "NY Salmon over Rice",
+          "description": "With onion & green peppers over rice.",
+          "price": 16.99,
+          "attributes": [
+            "spice_level",
+            "rice_type",
+            "serving_style"
+          ]
+        },
+        {
+          "id": "ny-sauce",
+          "name": "Sauce (Red or White)",
+          "variants": [
+            {
+              "id": "Sauce",
+              "name": "Sauce",
+              "price": 0.5
+            }
+          ]
+        }
+      ],
+      "pricing_rules": [
+        {
+          "id": "ny-alsham-longhots",
+          "priority": 100,
+          "applies_to": [
+            "ny-chicken",
+            "ny-lamb",
+            "ny-combo"
+          ],
+          "match_all_regex": [
+            "\\blong\\s*hots?\\b",
+            "\\bonions?\\b"
+          ],
+          "set": {
+            "variant_id": "al_sham"
+          }
+        },
+        {
+          "id": "ny-alsham-when-spicy",
+          "priority": 105,
+          "applies_to": [
+            "ny-chicken",
+            "ny-lamb",
+            "ny-combo"
+          ],
+          "match_any_regex": [
+            "\\bspicy\\b"
+          ],
+          "set": {
+            "variant_id": "al_sham"
+          }
+        },
+        {
+          "id": "ny-sauce-mention-guard",
+          "priority": 110,
+          "applies_to": [
+            "ny-chicken",
+            "ny-lamb",
+            "ny-combo",
+            "ny-falafel",
+            "ny-fish",
+            "ny-shrimp",
+            "ny-salmon"
+          ],
+          "match_any_regex": [
+            "\\bred\\s*sauce\\b",
+            "\\bwhite\\s*sauce\\b",
+            "\\bhot\\s*sauce\\b"
+          ],
+          "prompt": "NY platters already come with white & red sauce on top. Do you want an **extra** side for $0.50 ?",
+          "do_not_auto_add_modifiers": true
+        }
+      ]
+    },
+    {
+      "id": "quesadillas",
+      "name": "Quesadillas",
+      "notes": "All made with mozzarella cheese, served with fries and white sauce.",
+      "combo_prompt": false,
+      "items": [
+        {
+          "id": "qd-plain",
+          "name": "Plain (with cheese)",
+          "price": 8.99
+        },
+        {
+          "id": "qd-veggie",
+          "name": "Veggie (with spinach, broccoli, olives, green peppers, onions, mushrooms & tomato)",
+          "price": 10.99
+        },
+        {
+          "id": "qd-chicken",
+          "name": "Chicken (with green peppers & onions)",
+          "price": 13.99
+        },
+        {
+          "id": "qd-buffalo-chicken",
+          "name": "Buffalo Chicken",
+          "description": "With mozzarella cheese, long hots & blue cheese.",
+          "price": 13.99,
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "qd-lamb",
+          "name": "Lamb (with green peppers & onions)",
+          "price": 14.99
+        },
+        {
+          "id": "qd-steak",
+          "name": "Steak (with green peppers & onions)",
+          "price": 15.99
+        },
+        {
+          "id": "qd-salmon",
+          "name": "Salmon (with green peppers & onions)",
+          "price": 17.99
+        },
+        {
+          "id": "qd-al-sham-special",
+          "name": "Al-Sham Special Quesadillas (Mild or Spicy)",
+          "description": "Made with mozzarella cheese, long hots, onions, green peppers, parsley & white sauce. Served with fries & spicy mint sauce.",
+          "variants": [
+            {
+              "id": "chicken",
+              "name": "Chicken",
+              "price": 14.99
+            },
+            {
+              "id": "steak",
+              "name": "Steak",
+              "price": 16.99
+            },
+            {
+              "id": "lamb",
+              "name": "Lamb",
+              "price": 15.99
+            },
+            {
+              "id": "salmon",
+              "name": "Salmon",
+              "price": 18.99
+            }
+          ],
+          "attributes": [
+            "spice_level"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hoagies",
+      "name": "Hoagies",
+      "notes": "Made on a hoagie roll with garlic sauce, American cheese, onion, lettuce & tomato.",
+      "combo_prompt": true,
+      "combo_option": {
+        "prompt": "Would you like to make it a Combo (Fries & Can Soda) for $3.50?",
+        "price": 3.5
+      },
+      "category_modifiers": [
+        {
+          "id": "mod_hg_hot_peppers",
+          "name": "Hot Peppers",
+          "price": 0.75
+        },
+        {
+          "id": "mod_hg_sweet_peppers",
+          "name": "Sweet Peppers",
+          "price": 0.75
+        },
+        {
+          "id": "mod_hg_pickles",
+          "name": "Pickles",
+          "price": 0.75
+        },
+        {
+          "id": "mod_hg_cheese",
+          "name": "Extra Cheese",
+          "price": 0.75
+        }
+      ],
+      "items": [
+        {
+          "id": "hg-salmon",
+          "name": "Salmon Hoagie",
+          "price": 17.99,
+          "description": "With honey mustard sauce, cheese, lettuce, onions & tomatoes."
+        },
+        {
+          "id": "hg-chicken-finger",
+          "name": "Chicken Finger Hoagie",
+          "price": 13.99
+        },
+        {
+          "id": "hg-veggie",
+          "name": "Veggie Hoagie",
+          "price": 10.99,
+          "description": "With mayo, cheese, grilled spinach, broccoli, olives, green peppers, onions, lettuce & mushrooms."
+        },
+        {
+          "id": "hg-spicy-chicken",
+          "name": "Spicy Chicken Hoagie",
+          "price": 13.99,
+          "description": "Garlic & red sauce, chicken fingers, long hots, pickles & American cheese.",
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "hg-buffalo-chicken",
+          "name": "Buffalo Chicken Hoagie",
+          "price": 13.99,
+          "description": "With buffalo hot sauce, blue cheese, lettuce, onion & tomatoes.",
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "hg-cajun-chicken",
+          "name": "Cajun Chicken Hoagie",
+          "price": 13.99,
+          "description": "With mayo, cheese, cajun spices, fried onions, green peppers, lettuce & tomatoes.",
+          "attributes": [
+            "spice_level"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wraps",
+      "name": "Wraps",
+      "notes": "Wrapped in white wrap with garlic sauce, American cheese, onion, lettuce & tomato. Served with French fries.",
+      "combo_prompt": false,
+      "items": [
+        {
+          "id": "wrp-grilled-chicken",
+          "name": "Grilled Chicken Wrap",
+          "price": 14.99
+        },
+        {
+          "id": "wrp-lamb",
+          "name": "Lamb Wrap",
+          "price": 15.99
+        },
+        {
+          "id": "wrp-shrimp",
+          "name": "Shrimp Wrap",
+          "price": 16.99
+        },
+        {
+          "id": "wrp-salmon",
+          "name": "Salmon Wrap (8 oz)",
+          "price": 18.99
+        },
+        {
+          "id": "wrp-veggie",
+          "name": "Veggie Wrap (mushroom, spinach, broccoli, olives, onion, lettuce, tomato & American cheese)",
+          "price": 11.99
+        },
+        {
+          "id": "wrp-gyro",
+          "name": "Gyro Wrap (Beef & Lamb)",
+          "price": 15.99
+        },
+        {
+          "id": "wrp-cheesesteak",
+          "name": "Cheesesteak Wrap",
+          "price": 16.99
+        },
+        {
+          "id": "wrp-buffalo-chicken",
+          "name": "Buffalo Chicken Wrap",
+          "description": "With buffalo hot sauce, blue cheese, lettuce, tomato & onions.",
+          "price": 14.99,
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "wrp-chicken-finger",
+          "name": "Chicken Finger Wrap",
+          "price": 14.99
+        },
+        {
+          "id": "wrp-chicken-caesar",
+          "name": "Chicken Caesar Wrap",
+          "price": 14.99
+        },
+        {
+          "id": "wrp-al-sham",
+          "name": "Al-Sham Wrap (Mild or Spicy)",
+          "description": "Made with fried onion, green peppers, parsley & white sauce.",
+          "variants": [
+            {
+              "id": "chicken",
+              "name": "Chicken",
+              "price": 15.99
+            },
+            {
+              "id": "steak",
+              "name": "Steak",
+              "price": 16.99
+            },
+            {
+              "id": "lamb",
+              "name": "Lamb",
+              "price": 15.99
+            },
+            {
+              "id": "salmon",
+              "name": "Salmon",
+              "price": 18.99
+            }
+          ],
+          "attributes": [
+            "spice_level"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "salads-2",
+      "name": "Salads (Panel B)",
+      "notes": "Salads are made with lettuce, tomatoes, cucumbers, onions, green peppers, radishes & whole green olives. Served with your choice of dressing & pita.",
+      "items": [
+        {
+          "id": "sal-garden",
+          "name": "Garden Salad",
+          "price": 9.99
+        },
+        {
+          "id": "sal-greek",
+          "name": "Greek Salad",
+          "price": 10.99
+        },
+        {
+          "id": "sal-grilled-chicken",
+          "name": "Grilled Chicken Salad",
+          "price": 14.99
+        },
+        {
+          "id": "sal-chicken-finger",
+          "name": "Chicken Fingers Salad",
+          "price": 14.99
+        },
+        {
+          "id": "sal-buffalo-chicken",
+          "name": "Buffalo Chicken Salad",
+          "price": 14.99,
+          "description": "Served with blue cheese dressing.",
+          "attributes": [
+            "spice_level"
+          ]
+        },
+        {
+          "id": "sal-ny-chicken",
+          "name": "NY Chicken Salad",
+          "price": 12.99
+        },
+        {
+          "id": "sal-ny-lamb",
+          "name": "NY Lamb Salad",
+          "price": 13.99
+        },
+        {
+          "id": "sal-ny-combo",
+          "name": "NY Combo Salad",
+          "price": 13.99
+        },
+        {
+          "id": "sal-salmon",
+          "name": "Grilled Salmon Salad",
+          "price": 18.99
+        },
+        {
+          "id": "sal-plain-caesar",
+          "name": "Plain Caesar Salad",
+          "price": 9.99
+        },
+        {
+          "id": "sal-grilled-chicken-caesar",
+          "name": "Grilled Chicken Caesar Salad",
+          "price": 13.99
+        }
+      ]
+    },
+    {
+      "id": "side-orders",
+      "name": "Side Orders",
+      "items": [
+        {
+          "id": "side-french-fries",
+          "name": "French Fries",
+          "price": 3.99
+        },
+        {
+          "id": "side-cheese-fries",
+          "name": "Cheese Fries",
+          "price": 4.99
+        },
+        {
+          "id": "side-curly-fries",
+          "name": "Curly Fries",
+          "price": 4.99
+        },
+        {
+          "id": "side-mozzarella-fries",
+          "name": "Mozzarella Fries",
+          "price": 5.99
+        },
+        {
+          "id": "side-Pizza Fries",
+          "name": "Pizza fries",
+          "price": 5.99
+        },
+        {
+          "id": "side-cajun-fries",
+          "name": "Cajun Fries",
+          "price": 4.99
+        },
+        {
+          "id": "side-cajun-loaded",
+          "name": "Cajun Loaded Fries",
+          "price": 5.99,
+          "description": "Topped with mild white sauce."
+        },
+        {
+          "id": "side-mega-fries",
+          "name": "Mega Fries",
+          "price": 8.99
+        },
+        {
+          "id": "side-chicken-fingers",
+          "name": "Chicken Fingers (5 pcs)",
+          "price": 9.99
+        },
+        {
+          "id": "side-dirty-fries",
+          "name": "Dirty Fries",
+          "description": "steak with onions, sweat and hot pepers, cheese, mozzarilla sticks, onion rings and topped with white sauce",
+          "price": 17.99
+        },
+        {
+          "id": "side-mozzarella-sticks",
+          "name": "Mozzarella Sticks",
+          "price": 6.99
+        },
+        {
+          "id": "side-onion-rings",
+          "name": "Onion Rings",
+          "price": 6.99
+        },
+        {
+          "id": "side-yellow-rice",
+          "name": "Yellow Rice",
+          "price": 3.99
+        },
+        {
+          "id": "side-brown-rice",
+          "name": "Brown Rice",
+          "price": 4.99
+        }
+      ]
+    }
+  ]
+}
