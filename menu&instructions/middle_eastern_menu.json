@@ -105,38 +105,25 @@
   },
   "pricing_policies": [
     {
-      "id": "pack_optimizer",
+      "id": "pack_optimizer_4pc_standard",
       "applies_to_item_ids": [
         "app-kibbe",
         "app-meat-pie",
-        "app-spinach-pie",
-        "app-cheese-pie",
-        "app-chicken-samosa",
-        "app-beef-samosa",
-        "app-veg-samosa"
+        "app-spinach-pie"
       ],
-      "trigger": {
-        "needs_total_pieces": true
-      },
       "packs": [
         {
           "size": 4,
-          "variant_id": "four",
           "unit_price": 9.99
         },
         {
           "size": 1,
-          "variant_id": "single",
           "unit_price": 2.79
         }
       ],
       "optimize": "min_price_exact_quantity",
-      "allow_mixed_packs": true,
-      "apply_silently": true,
-      "ui": {
-        "do_not_prompt_pack_choice": true,
-        "do_not_prompt_savings_confirmation": true
-      },
+      "allow_mixed_packs": false,
+      "apply_silently": false,
       "respect_user_constraint": {
         "block_optimizer_if_regex": [
           "\\bsingle(s)?\\s*only\\b",
@@ -146,6 +133,64 @@
       },
       "render_lines": "split_by_pack",
       "line_format": "{packs_of_4}× (4 pcs) + {singles}× (1 pc)"
+    },
+    {
+      "id": "pack_optimizer_4pc_cheese",
+      "applies_to_item_ids": [
+        "app-cheese-pie"
+      ],
+      "packs": [
+        {
+          "size": 4,
+          "unit_price": 8.99
+        },
+        {
+          "size": 1,
+          "unit_price": 2.79
+        }
+      ],
+      "optimize": "min_price_exact_quantity",
+      "allow_mixed_packs": true,
+      "apply_silently": true,
+      "respect_user_constraint": {
+        "block_optimizer_if_regex": [
+          "\\bsingle(s)?\\s*only\\b",
+          "\\bno\\s*bundle(s)?\\b",
+          "\\bno\\s*deal(s)?\\b"
+        ]
+      },
+      "render_lines": "split_by_pack",
+      "line_format": "{packs_of_4}× (4 pcs) + {singles}× (1 pc)"
+    },
+    {
+      "id": "pack_optimizer_5pc_samosa",
+      "applies_to_item_ids": [
+        "app-chicken-samosa",
+        "app-beef-samosa",
+        "app-veg-samosa"
+      ],
+      "packs": [
+        {
+          "size": 5,
+          "unit_price": 11.99
+        },
+        {
+          "size": 1,
+          "unit_price": 2.79
+        }
+      ],
+      "optimize": "min_price_exact_quantity",
+      "allow_mixed_packs": true,
+      "apply_silently": true,
+      "respect_user_constraint": {
+        "block_optimizer_if_regex": [
+          "\\bsingle(s)?\\s*only\\b",
+          "\\bno\\s*bundle(s)?\\b",
+          "\\bno\\s*deal(s)?\\b"
+        ]
+      },
+      "render_lines": "split_by_pack",
+      "line_format": "{packs_of_5}× (5 pcs) + {singles}× (1 pc)"
     }
   ],
   "global_attributes": {
@@ -569,7 +614,7 @@
         {
           "id": "app-chicken-kofta-1stk",
           "name": "Chicken Kofta Kebab (1 Stk)",
-          "price": 3.99,
+          "price": 4.99,
           "description": "Seasoned ground meat."
         },
         {

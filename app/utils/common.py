@@ -1,7 +1,7 @@
 import json, re
-from functools import lru_cache
-from math import isfinite
-from typing import Any, Dict, List, Optional, Union
+# from functools import lru_cache
+# from math import isfinite
+# from typing import Any, Dict, List, Optional, Union
 
 def money(n: float) -> float:
     # bankers-safe rounding to 2dp
@@ -47,6 +47,19 @@ def _coerce_cart_list(v):
             it.setdefault("attributes", None)
             out.append(it)
     return out
+
+def expand_modifiers_detail(mod_idx, line):
+    details = []
+    for m in line.modifiers:
+        unit = m.unit_price if (m.unit_price is not None) else mod_idx.get(m.modifier_id, 0)
+        qty = max(1, m.qty or 1)
+        details.append({
+            "modifier_id": m.modifier_id,
+            "qty": int(qty),
+            "unit": float(unit),
+            "line_total": money(unit * qty),
+        })
+    return details
 
 # utterance → menu hints
 TENANT_HINT_RE = re.compile(r"(?:for|from|at|in)\s+([a-z0-9\- _]{2,40})", re.I)

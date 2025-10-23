@@ -25,11 +25,14 @@
       "closing": "Always thank the customer warmly before ending the call.",
       "restrictions": "Never disclose that you are an AI assistant.",
       "order_timings": "Pickup: 25–30 minutes. Delivery: 45–60 minutes. For large/peak times, advise it may take a little longer.",
-      "pricing": "Primary: use price_order_with_tool with a full cart payload (cart lines + utterance). If that tool errors, times out, or returns an invalid response, immediately fall back to total_with_tool with a plain comma-separated list of numeric prices.",
+      "pricing": "Use interim_total while the caller is still adding or changing items. Only call finalize_total when they’re done and want the final amount with tax. If either tool errors/times out, fall back to total_with_tool by sending just numeric prices.",
       "price_collection_note": "When falling back to total_with_tool, speak per-item prices first, then pass only numeric prices (e.g., \"11.99, 4, 9.99, 0.50\"). Read back subtotal, tax, total from the tool result.",
       "menu_verification": "Validate items against the knowledge_base menu. Resolve to canonical IDs and variants before pricing. Prefer American vs. Middle Eastern via the item ids/aliases. Never invent prices.",
-      "pricing_trigger_policy": "Do not call pricing tools while the user is still adding items. Instead, confirm each item politely and ask 'Would you like to add anything else?'. Only when the user says 'No', 'That’s all', 'Give me total', or stops adding new items, call price_order_with_tool with the full cart and utterance.",
-      "pack_deals": "If the customer asks for packs/singles math, verbally explain the per-item math, but still send only the final prices into total_with_tool for the total with tax."
+      "pricing_source_of_truth": "Use interim_total while items change; use finalize_total when done. On any error/timeout, fall back to total_with_tool.",
+      "cart_update_policy": "When calling interim_total, send only NEW or CHANGED lines (deltas). Do not resend previously added lines. To remove, send the same item_id/variant_id with a NEGATIVE qty.",
+      "finalize_policy": "finalize_total is STATELESS. When the caller is done, send the FULL final cart in cart_patch.lines (all items) and include_tax=true. Do not include order_id.",
+      "pricing_trigger_policy": "Do NOT call finalize_total while the user is still adding/removing. After each add/remove, call interim_total to speak the Subtotal only. When the caller says 'that’s all', 'what’s my total', 'final total', etc., call finalize_total (include_tax=true).",
+      "pack_deals": "Let the pricing engine optimize bundles. If caller says 'singles only' or 'no deals', pass this in the utterance so the engine disables pack optimizer."
     },
     "business_hours": {
       "timezone": "America/New_York",
@@ -74,6 +77,19 @@
           },
           "false": {
             "next_step": "warm_transfer_for_online"
+          }
+        }
+      },
+      {
+        "id": "check_cart_not_empty",
+        "action": "guard",
+        "condition": "cart_items.length > 0",
+        "actions": {
+          "true": {
+            "next_step": "finalize_order_total"
+          },
+          "false": {
+            "next_step": "order_items"
           }
         }
       },
@@ -222,25 +238,79 @@
         },
         "condition": "all_items_valid",
         "actions": {
-          "true": { "next_step": "price_with_tool_primary" },
-          "false": { "next_step": "handle_invalid_items" }
+          "true": {
+            "next_step": "apply_cart_change"
+          },
+          "false": {
+            "next_step": "handle_invalid_items"
+          }
         }
       },
-
       {
-        "id": "price_with_tool_primary",
+        "id": "apply_cart_change",
         "action": "function",
-        "function": "price_order_with_tool",
+        "function": "interim_total",
         "params": {
-          "cart": "resolved_cart_lines_with_ids_variants_modifiers",
-          "utterance": "last_user_instruction_string"
+          "order_id": "CALL-{session_id}",
+          "cart_patch": {
+            "lines": "resolved_new_or_changed_lines_only (deltas)"
+          },
+          "utterance": "utterances_last_2_turns"
         },
         "actions": {
-          "success": { "next_step": "confirm_order" },
-          "failure": { "next_step": "price_with_tool_fallback" }
+          "success": {
+            "next_step": "speak_interim_subtotal"
+          },
+          "failure": {
+            "next_step": "price_with_tool_fallback"
+          }
         }
       },
-
+      {
+        "id": "speak_interim_subtotal",
+        "action": "inform",
+        "message": "So far your subtotal is ${tool_result.subtotal} USD. Would you like anything else?",
+        "next_step": "wait_for_more_or_finalize"
+      },
+      {
+        "id": "wait_for_more_or_finalize",
+        "action": "branch",
+        "condition": "matches(intent_detection.utterance_patterns_for_total)",
+        "actions": {
+          "true": {
+            "next_step": "finalize_order_total"
+          },
+          "false": {
+            "next_step": "order_items"
+          }
+        }
+      },
+      {
+        "id": "finalize_order_total",
+        "action": "function",
+        "function": "finalize_total",
+        "params": {
+          "include_tax": true,
+          "utterance": "utterances_last_2_turns",
+          "cart_patch": {
+            "lines": "FULL_final_cart_all_items"
+          }
+        },
+        "actions": {
+          "success": {
+            "next_step": "confirm_order_total"
+          },
+          "failure": {
+            "next_step": "price_with_tool_fallback"
+          }
+        }
+      },
+      {
+        "id": "confirm_order_total",
+        "action": "confirm",
+        "message": "Here’s your total — Subtotal: ${tool_result.subtotal} USD, Tax: ${tool_result.tax} USD, Total: ${tool_result.total} USD. Is everything correct?",
+        "next_step": "capture_name_and_phone_conditionally"
+      },
       {
         "id": "price_with_tool_fallback",
         "action": "function",
@@ -249,16 +319,13 @@
           "prices": "llm_compiled_prices_string"
         },
         "actions": {
-          "success": { "next_step": "confirm_order_total" },
-          "failure": { "next_step": "pricing_fallback" }
+          "success": {
+            "next_step": "confirm_order_total"
+          },
+          "failure": {
+            "next_step": "pricing_fallback"
+          }
         }
-      },
-
-      {
-        "id": "confirm_order_total",
-        "action": "confirm",
-        "message": "Here’s your total—Subtotal: ${tool_result.subtotal} USD, Tax: ${tool_result.tax} USD, Total: ${tool_result.total} USD. Is everything correct?",
-        "next_step": "capture_name_and_phone_conditionally"
       },
       {
         "id": "pricing_fallback",
@@ -271,12 +338,6 @@
         "action": "inform",
         "message": "I’m sorry, one or more of those items are not available on our current menu. Could I suggest something else instead?",
         "next_step": "order_items"
-      },
-      {
-        "id": "confirm_order",
-        "action": "confirm",
-        "message": "Let me confirm your order… {tool_result.lines_rendered}\nSubtotal: {tool_result.subtotal} {tool_result.currency}\nTax: {tool_result.tax} {tool_result.currency}\nTotal: {tool_result.total} {tool_result.currency}\nIs everything correct?",
-        "next_step": "capture_name_and_phone_conditionally"
       },
       {
         "id": "capture_name_and_phone_conditionally",

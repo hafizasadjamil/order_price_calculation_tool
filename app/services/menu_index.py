@@ -69,19 +69,35 @@ def index_menu(menu):
             else:
                 item_idx[iid] = {"type": "flat","price": it.get("price", 0),"category_id": cat_id}
 
-    pack = next((p for p in menu.get("pricing_policies", []) if p.get("id") == "pack_optimizer"), None)
-    pack_policy = None
-    if pack:
-        ps = {x["size"]: x for x in pack.get("packs", [])}
-        pack_policy = {
-            "applies": set(pack.get("applies_to_item_ids", [])),
-            "size": 4,
-            "pack": ps.get(4, {}).get("unit_price", 9.99),
-            "single": ps.get(1, {}).get("unit_price", 2.79),
-            "respect_user_constraint": pack.get("respect_user_constraint", {}),
-            "render_lines": pack.get("render_lines", "split_by_pack"),
-            "line_format": pack.get("line_format", "{packs_of_4}× (4 pcs) + {singles}× (1 pc)"),
+    # pack = next((p for p in menu.get("pricing_policies", []) if p.get("id") == "pack_optimizer"), None)
+    pack_policies_by_item: dict[str, dict] = {}
+    for policy in menu.get("pricing_policies", []):
+        if not policy.get("packs"):
+            continue
+        packs_map = {}
+        for x in policy["packs"]:
+            sz = int(x.get("size", 0))
+            up = float((x.get("unit_price") or 0))
+            if sz:
+                packs_map[sz] = up
+
+        if 1 not in packs_map or not any(s > 1 for s in packs_map.keys()):
+            continue
+
+        bundle_size = max([s for s in packs_map.keys() if s > 1])
+        data = {
+            "size": bundle_size,
+            "pack": packs_map[bundle_size],
+            "single": packs_map[1],
+            "render_lines": policy.get("render_lines", "split_by_pack"),
+            "line_format": policy.get("line_format", "{packs}× (bundle) + {singles}× (single)"),
+            "allow_mixed_packs": bool(policy.get("allow_mixed_packs", True)),
+            "respect_user_constraint": policy.get("respect_user_constraint", {}),
+            "policy_id": policy.get("id")
         }
+
+        for iid in policy.get("applies_to_item_ids", []):
+            pack_policies_by_item[iid] = data
 
     combo = None
     cp = menu.get("combo_policy")
@@ -93,7 +109,13 @@ def index_menu(menu):
             "ask_instead_of_auto_add": cp.get("ask_instead_of_auto_add", False),
         }
 
-    return item_idx, mod_idx, cat_allowed_mods, item_allowed_mod_ids, pack_policy, combo, category_combo_price
+    return (item_idx,
+            mod_idx,
+            cat_allowed_mods,
+            item_allowed_mod_ids,
+            pack_policies_by_item,
+            combo,
+            category_combo_price)
 
 def resolve_unit(idx, item_id, variant_id, cat_name_map):
     info = idx.get(item_id)
@@ -103,11 +125,22 @@ def resolve_unit(idx, item_id, variant_id, cat_name_map):
     cat_name = cat_name_map.get(cat_id, cat_id)
     if info["type"] == "flat":
         return float(info.get("price", 0) or 0), cat_id, cat_name
+
     v = variant_id or "base"
-    unit_obj = info["variants"].get(v) or info["variants"].get("base")
+    unit_obj = info["variants"].get(v)
+    if unit_obj is None:
+        # last chance: try 'base'
+        unit_obj = info["variants"].get("base")
+
+    if unit_obj is None:
+        # raise instead of silently pricing as 0
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Missing/invalid variant_id for item '{item_id}'.")
+
     if isinstance(unit_obj, dict):
         return float(unit_obj.get("price", 0) or 0), cat_id, cat_name
     return float(unit_obj or 0), cat_id, cat_name
+
 
 def sum_mods(mod_idx, line, qty: int) -> float:
     s = 0.0

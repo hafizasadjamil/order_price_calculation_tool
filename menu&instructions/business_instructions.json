@@ -27,6 +27,18 @@
     "include_combo_prompt": true,
     "sauce_guard_info": "NY platters already include sauces on top; extra sauce is charged as a modifier."
   },
+  "tool_strategy": {
+    "order": [
+      "interim_total (send only deltas while adding/removing)",
+      "finalize_total (stateless, send full cart, include_tax=true)",
+      "total_with_tool (fallback only)"
+    ],
+    "speak_style": {
+      "interim_total": "Read back lines and Subtotal only.",
+      "finalize_total": "Read back lines, then Tax + Total.",
+      "total_with_tool": "Read back per-item prices then Subtotal, Tax, Total from tool result."
+    }
+  },
   "upselling_and_popular_items": {
     "upsell_items": [
       "Special drinks",
@@ -71,9 +83,11 @@
       "(?i)\\bsend\\s+to\\s+my\\s+address\\b"
     ],
     "utterance_patterns_for_total": [
-  "(?i)\\b(that'?s all|no more|give me total|how much|what'?s my total|done ordering)\\b"
-]
-
+      "(?i)\\b(that'?s all|no more|give me total|how much|what'?s my total|done ordering|final total|i'm done)\\b"
+    ],
+    "utterance_patterns_for_remove": [
+      "(?i)\\b(remove|take off|cancel|no\\s+longer\\s+want|reduce|change quantity)\\b"
+    ]
   },
   "order_process": {
     "options": [
@@ -107,7 +121,7 @@
         "callback_requested",
         "text_receipt_requested"
       ],
-      "pricing_source_of_truth": "Always use price_order_with_tool; on any error/timeout use total_with_tool.",
+      "pricing_source_of_truth": "Use interim_total while items change; use finalize_total when done. On any error/timeout, fall back to total_with_tool.",
       "pack_optimizer_phrases_window": "Include last 2 user turns in 'utterances_last_2_turns' for 'singles only'/'no deals' detection."
     }
   },
@@ -148,7 +162,7 @@
   "tool_access_policies": {
     "online_orders_access": "unavailable",
     "on_unavailable": "perform warm transfer immediately; do not proceed with the call pretending to have access.",
-    "price_order_with_tool": {
+    "interim_total": {
       "http_method": "POST",
       "timeout_ms": 8000,
       "retry": {
@@ -156,9 +170,34 @@
         "backoff_ms": 300
       },
       "must_include": [
-        "cart",
+        "order_id"
+      ],
+      "optional": [
+        "cart_patch",
         "utterance"
       ],
+      "disable_when": [
+        "no_internet"
+      ],
+      "fallback": "total_with_tool"
+    },
+    "finalize_total": {
+      "http_method": "POST",
+      "timeout_ms": 10000,
+      "retry": {
+        "max": 1,
+        "backoff_ms": 300
+      },
+      "must_include": [
+        "cart_patch"
+      ],
+      "optional": [
+        "utterance",
+        "include_tax"
+      ],
+      "defaults": {
+        "include_tax": true
+      },
       "disable_when": [
         "no_internet"
       ],
@@ -181,15 +220,29 @@
     }
   },
   "developer_call_templates": {
-    "price_order_with_tool": {
-      "url": "https://0c6a5d90d130.ngrok-free.app/calc",
+    "interim_total": {
+      "url": "https://bec29f041fab.ngrok-free.app/tool/interim_total",
       "method": "POST",
       "body": {
-        "cart": "resolved_cart_lines_with_ids_variants_modifiers",
+        "order_id": "CALL-{session_id}",
+        "cart_patch": {
+          "lines": "only_new_or_changed_lines (deltas)"
+        },
         "utterance": "last_user_instruction_string"
       },
-      "on_success_assign": "tool_result",
-      "on_failure": "price_fallback_invoke_total_tool"
+      "on_success_assign": "tool_result"
+    },
+    "finalize_total": {
+      "url": "https://bec29f041fab.ngrok-free.app/tool/finalize",
+      "method": "POST",
+      "body": {
+        "cart_patch": {
+          "lines": "FULL_final_cart_all_items"
+        },
+        "utterance": "final_instruction_string",
+        "include_tax": true
+      },
+      "on_success_assign": "tool_result"
     },
     "total_with_tool": {
       "url": "https://ai.hhfortune.com/eleven-labs/price-calculation",
@@ -202,7 +255,8 @@
     }
   },
   "readback_policy": {
-    "line_format": "{qty}× {desc} — {line_total}",
+
+    "line_format": "{qty}× {desc}{variant_suffix}{attr_suffix}{mods_suffix} — {line_total}",
     "optimizer_line_format": "{desc} — {line_total}",
     "show_subtotal_tax_total": true,
     "round_display_to_2dp": true,
