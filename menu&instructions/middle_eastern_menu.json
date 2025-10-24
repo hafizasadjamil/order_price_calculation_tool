@@ -344,11 +344,11 @@
       "long-roll",
       "arabic-sandwiches",
       "maroosh",
-      "quesadillas",
       "hoagies"
     ],
     "excluded_category_ids": [
-      "wraps"
+      "wraps",
+      "new-york"
     ]
   },
   "disambiguations": [
@@ -377,6 +377,21 @@
         }
       ],
       "question": "Do you want Chicken Shawarma as Arabic Sandwich, Long Roll, Entrée, or Salad?"
+    },
+    {
+      "phrase": "fish",
+      "candidates": [
+        {
+          "item_id": "ny-fish",
+          "category_id": "new-york",
+          "hint": "NY Fish Platter ($9.99)"
+        },
+        {
+          "modifier_id": "mod_ny_extra_fish",
+          "hint": "Extra NY Fish add-on ($4)"
+        }
+      ],
+      "question": "Did you mean the full NY Fish Platter for $9.99, or just the Extra NY Fish add-on for $4?"
     },
     {
       "phrase": "kofta",
@@ -492,6 +507,13 @@
     "app-baba-ghanouj": [
       "baba ghanoush",
       "eggplant dip"
+    ],
+    "side-yellow-rice": [
+      "yellow rice"
+    ],
+    "side-brown-rice": [
+      "brown rice",
+      "seasoned brown rice"
     ]
   },
   "categories": [
@@ -573,7 +595,7 @@
         },
         {
           "id": "app-grape-leaves",
-          "name": "Grape Leaves",
+          "name": "Stuffed Grape Leaves",
           "variants": [
             {
               "id": "sm",
@@ -583,7 +605,7 @@
             {
               "id": "lg",
               "name": "Large",
-              "price": 12.99
+              "price": 9.99
             }
           ]
         },
@@ -719,7 +741,6 @@
             {
               "id": "spice_level",
               "allowed": [
-                "mild",
                 "spicy"
               ],
               "default": "spicy",
@@ -744,6 +765,16 @@
               "price": 11.99
             }
           ],
+          "attributes": [
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
+          ],
           "supports_pack_optimizer": true
         },
         {
@@ -762,12 +793,17 @@
               "price": 11.99
             }
           ],
+          "attributes": [
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
+          ],
           "supports_pack_optimizer": true
-        },
-        {
-          "id": "app-dolma-6pc",
-          "name": "Dolma (6 pcs)",
-          "price": 4.99
         },
         {
           "id": "app-al-sham-sampler",
@@ -1300,6 +1336,7 @@
         "mod_ny_extra_salmon",
         "mod_ny_extra_falafel"
       ],
+      "combo_prompt": false,
       "items": [
         {
           "id": "ny-chicken",
@@ -1314,11 +1351,20 @@
             {
               "id": "al_sham",
               "name": "Al-Sham Style (Long Hots & Onion)",
-              "price": 10.99
+              "price": 10.99,
+              "attributes": [
+                {
+                  "id": "spice_level",
+                  "allowed": [
+                    "spicy"
+                  ],
+                  "default": "spicy",
+                  "auto_set_if_omitted": true
+                }
+              ]
             }
           ],
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
@@ -1328,7 +1374,6 @@
           "name": "NY Falafel over Rice (5 pcs)",
           "price": 9.99,
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
@@ -1346,11 +1391,20 @@
             {
               "id": "al_sham",
               "name": "Al-Sham Style (Long Hots & Onion)",
-              "price": 11.99
+              "price": 11.99,
+              "attributes": [
+                {
+                  "id": "spice_level",
+                  "allowed": [
+                    "spicy"
+                  ],
+                  "default": "spicy",
+                  "auto_set_if_omitted": true
+                }
+              ]
             }
           ],
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
@@ -1368,11 +1422,20 @@
             {
               "id": "al_sham",
               "name": "Al-Sham Style (Long Hots & Onion)",
-              "price": 11.99
+              "price": 11.99,
+              "attributes": [
+                {
+                  "id": "spice_level",
+                  "allowed": [
+                    "spicy"
+                  ],
+                  "default": "spicy",
+                  "auto_set_if_omitted": true
+                }
+              ]
             }
           ],
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
@@ -1383,7 +1446,6 @@
           "description": "Over rice with onions & green peppers.",
           "price": 9.99,
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
@@ -1394,7 +1456,6 @@
           "description": "Over rice with onions & green peppers.",
           "price": 12.99,
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
@@ -1405,14 +1466,13 @@
           "description": "With onion & green peppers over rice.",
           "price": 16.99,
           "attributes": [
-            "spice_level",
             "rice_type",
             "serving_style"
           ]
         },
         {
           "id": "ny-sauce",
-          "name": "Sauce (Red or White)",
+          "name": "Sauce (Red(spicy) or White)",
           "variants": [
             {
               "id": "Sauce",
@@ -1503,7 +1563,14 @@
           "description": "With mozzarella cheese, long hots & blue cheese.",
           "price": 13.99,
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         },
         {
@@ -1548,7 +1615,15 @@
             }
           ],
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "Mild",
+                "Spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         }
       ]
@@ -1608,7 +1683,14 @@
           "price": 13.99,
           "description": "Garlic & red sauce, chicken fingers, long hots, pickles & American cheese.",
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         },
         {
@@ -1617,7 +1699,14 @@
           "price": 13.99,
           "description": "With buffalo hot sauce, blue cheese, lettuce, onion & tomatoes.",
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         },
         {
@@ -1626,7 +1715,14 @@
           "price": 13.99,
           "description": "With mayo, cheese, cajun spices, fried onions, green peppers, lettuce & tomatoes.",
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         }
       ]
@@ -1678,7 +1774,14 @@
           "description": "With buffalo hot sauce, blue cheese, lettuce, tomato & onions.",
           "price": 14.99,
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         },
         {
@@ -1718,7 +1821,15 @@
             }
           ],
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy",
+                "mild"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         }
       ]
@@ -1754,7 +1865,14 @@
           "price": 14.99,
           "description": "Served with blue cheese dressing.",
           "attributes": [
-            "spice_level"
+            {
+              "id": "spice_level",
+              "allowed": [
+                "spicy"
+              ],
+              "default": "spicy",
+              "auto_set_if_omitted": true
+            }
           ]
         },
         {
@@ -1801,7 +1919,7 @@
         {
           "id": "side-cheese-fries",
           "name": "Cheese Fries",
-          "price": 4.99
+          "price": 6.99
         },
         {
           "id": "side-curly-fries",
@@ -1826,18 +1944,13 @@
         {
           "id": "side-cajun-loaded",
           "name": "Cajun Loaded Fries",
-          "price": 5.99,
+          "price": 15.99,
           "description": "Topped with mild white sauce."
         },
         {
           "id": "side-mega-fries",
           "name": "Mega Fries",
           "price": 8.99
-        },
-        {
-          "id": "side-chicken-fingers",
-          "name": "Chicken Fingers (5 pcs)",
-          "price": 9.99
         },
         {
           "id": "side-dirty-fries",
@@ -1847,23 +1960,45 @@
         },
         {
           "id": "side-mozzarella-sticks",
-          "name": "Mozzarella Sticks",
+          "name": "Mozzarella Sticks (6pcs)",
           "price": 6.99
         },
         {
           "id": "side-onion-rings",
-          "name": "Onion Rings",
+          "name": "Onion Rings(10)",
           "price": 6.99
         },
         {
           "id": "side-yellow-rice",
           "name": "Yellow Rice",
-          "price": 3.99
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 4.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 6.99
+            }
+          ]
         },
         {
           "id": "side-brown-rice",
-          "name": "Brown Rice",
-          "price": 4.99
+          "name": "Seasoned Brown Rice",
+          "variants": [
+            {
+              "id": "sm",
+              "name": "Small",
+              "price": 4.99
+            },
+            {
+              "id": "lg",
+              "name": "Large",
+              "price": 6.99
+            }
+          ]
         }
       ]
     }

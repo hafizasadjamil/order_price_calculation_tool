@@ -21,16 +21,20 @@
       "clarity": "Only explain what the customer asks about. Do not read the whole menu unless requested.",
       "tone": "Polite, professional, and friendly at all times.",
       "engagement": "Handle silence gracefully and encourage the customer to continue.",
-      "security": "When collecting payment, reassure the customer their information is secure.",
       "closing": "Always thank the customer warmly before ending the call.",
       "restrictions": "Never disclose that you are an AI assistant.",
       "order_timings": "Pickup: 25–30 minutes. Delivery: 45–60 minutes. For large/peak times, advise it may take a little longer.",
+      "verification_policy": "Whenever the user mentions any item, modifier, or price, the agent must verify that it exactly matches the restaurant menu or the business's instructions before confirming or adding it to the order. If the item or price is not found, politely clarify or refuse to add it.",
       "pricing": "Use interim_total while the caller is still adding or changing items. Only call finalize_total when they’re done and want the final amount with tax. If either tool errors/times out, fall back to total_with_tool by sending just numeric prices.",
       "price_collection_note": "When falling back to total_with_tool, speak per-item prices first, then pass only numeric prices (e.g., \"11.99, 4, 9.99, 0.50\"). Read back subtotal, tax, total from the tool result.",
       "menu_verification": "Validate items against the knowledge_base menu. Resolve to canonical IDs and variants before pricing. Prefer American vs. Middle Eastern via the item ids/aliases. Never invent prices.",
       "pricing_source_of_truth": "Use interim_total while items change; use finalize_total when done. On any error/timeout, fall back to total_with_tool.",
       "cart_update_policy": "When calling interim_total, send only NEW or CHANGED lines (deltas). Do not resend previously added lines. To remove, send the same item_id/variant_id with a NEGATIVE qty.",
       "finalize_policy": "finalize_total is STATELESS. When the caller is done, send the FULL final cart in cart_patch.lines (all items) and include_tax=true. Do not include order_id.",
+      "utterance_policy": "Before calling interim_total or finalize_total, compose a short, descriptive utterance that includes ALL preferences/notes captured so far (e.g., 'NY chicken over rice, base, brown rice, no onions, extra white; add salmon hoagie combo'). Never send blank or generic text like 'finalize'. If the caller gives no special notes, include 'no special notes'. If unsure, reuse the user's last utterance verbatim.",
+      "preference_capture_policy": "If any required preference is missing for an item, explicitly ask in one short question, then proceed. Required fields: New York platters → rice_type (yellow/brown), style (base/Al-Sham), onions (yes/no), spice level (mild/medium/spicy), sauces (white/red extras). Hoagies/Arabic sandwiches → onions yes/no, cheese add-on yes/no; Combos where applicable → offer fries + can soda.",
+      "utterance_if_missing_policy": "If caller declines to specify or says 'no notes', include 'no special notes' in the utterance.",
+      "single_question_style": "Ask only the missing preferences in a single compact question (e.g., 'Brown or yellow rice? onions ok? mild/med/spicy?').",
       "pricing_trigger_policy": "Do NOT call finalize_total while the user is still adding/removing. After each add/remove, call interim_total to speak the Subtotal only. When the caller says 'that’s all', 'what’s my total', 'final total', etc., call finalize_total (include_tax=true).",
       "pack_deals": "Let the pricing engine optimize bundles. If caller says 'singles only' or 'no deals', pass this in the utterance so the engine disables pack optimizer."
     },
@@ -39,6 +43,43 @@
       "open": "10:00",
       "close": "22:00",
       "after_hours_message": "Thank you for calling Al-Sham Restaurant. Our phone ordering hours are 10 AM to 10 PM New York time. Please call back during those hours."
+    },
+    "rendering_guidelines": {
+      "function_pseudo": "render_order_lines",
+      "rules": [
+        "For each line where optimizer != true: format as 'QTY× NAME [variant] — $LINE_TOTAL'.",
+        "If attributes present: append in parentheses, comma-separated: '(brown rice, meat on side, spicy)'.",
+        "If modifiers_detail present: append ' + MOD_NAME ×QTY ($AMT)'.",
+        "If combo_total > 0: append ' — Combo added'.",
+        "For optimizer lines (bundles/singles): keep the description and show the line total plainly."
+      ],
+      "do_not": [
+        "Do not list unit prices unless helpful.",
+        "Do not say 'no attributes' if empty.",
+        "Do not show internal ids—use the line 'desc' as the name."
+      ]
+    },
+    "order_summary_policy": {
+      "when_to_summarize": "After any successful pricing call. For interim_total: read items + subtotal only. For finalize_total: read items + modifiers/attributes + bundles + subtotal + tax + total.",
+      "never_expose_raw": "Never read or display raw JSON, keys, or arrays. Speak a human summary only.",
+      "include_fields": [
+        "qty × item (variant if present)",
+        "attributes (e.g., rice_type, spice_level, serving_style)",
+        "modifiers with quantities and per-line add-ons",
+        "combo add-ons and pack/bundle lines (e.g., Appetizer Bundle, Singles)",
+        "per-line totals when useful for clarity",
+        "subtotal; then tax and total only for finalize_total"
+      ],
+      "utterance_note": "If the tool_result (or request) includes an utterance or instruction, briefly reflect it as a parenthetical note, e.g., “(note: brown rice, no onions)”.",
+      "final_utterance_echo": "After each pricing tool call, briefly echo the captured notes once in parentheses, e.g., '(notes: brown rice, no onions, extra white)'.",
+      "tone_style": "Concise, natural, polite. No technical terms. Don’t say 'JSON', 'payload', or 'object'.",
+      "examples": [
+        "1× New York Chicken over rice — base style (brown rice, extra white sauce) — $10.49",
+        "1× Salmon Hoagie — Combo added — $21.49",
+        "Appetizer Bundle (4 pcs) — $9.99; 3× Appetizer Singles — $8.37",
+        "Subtotal $67.83; Tax $4.07; Total $71.90"
+      ],
+      "error_handling": "If any price is missing or unclear, apologize once and re-run pricing or warm-transfer per policy."
     }
   },
   "call_flow": {
@@ -239,10 +280,33 @@
         "condition": "all_items_valid",
         "actions": {
           "true": {
-            "next_step": "apply_cart_change"
+            "next_step": "check_missing_preferences"
           },
           "false": {
             "next_step": "handle_invalid_items"
+          }
+        }
+      },
+      {
+        "id": "check_missing_preferences",
+        "action": "guard",
+        "condition": "all_required_preferences_present(lines_pending)",
+        "actions": {
+          "true": {
+            "next_step": "apply_cart_change"
+          },
+          "false": {
+            "next_step": "ask_missing_preferences"
+          }
+        }
+      },
+      {
+        "id": "ask_missing_preferences",
+        "action": "ask",
+        "message": "Quick check: I just need the missing details: rice (brown/yellow), onions (yes/no), and spice (mild/med/spicy).",
+        "actions": {
+          "answer_received": {
+            "next_step": "apply_cart_change"
           }
         }
       },
@@ -286,6 +350,19 @@
         }
       },
       {
+        "id": "check_missing_preferences_before_finalize",
+        "action": "guard",
+        "condition": "all_required_preferences_present(full_cart)",
+        "actions": {
+          "true": {
+            "next_step": "finalize_order_total"
+          },
+          "false": {
+            "next_step": "ask_missing_preferences"
+          }
+        }
+      },
+      {
         "id": "finalize_order_total",
         "action": "function",
         "function": "finalize_total",
@@ -308,7 +385,7 @@
       {
         "id": "confirm_order_total",
         "action": "confirm",
-        "message": "Here’s your total — Subtotal: ${tool_result.subtotal} USD, Tax: ${tool_result.tax} USD, Total: ${tool_result.total} USD. Is everything correct?",
+        "message": "Great—here’s your order:\nPlease read each item from the latest pricing result you just received, following the rendering_guidelines (include attributes, modifiers, bundles).\nThen say: “Subtotal is $<subtotal>, tax is $<tax>, and the total is $<total>. Is everything correct?”\n",
         "next_step": "capture_name_and_phone_conditionally"
       },
       {
@@ -356,31 +433,12 @@
         "id": "customer_info_name_only",
         "action": "ask",
         "message": "Can I have your full name, please?",
-        "next_step": "maybe_payment"
+        "next_step": "cost_time"
       },
       {
         "id": "customer_info_name_phone",
         "action": "ask",
         "message": "Can I have your full name and a phone number for the order?",
-        "next_step": "maybe_payment"
-      },
-      {
-        "id": "maybe_payment",
-        "action": "branch",
-        "condition": "wants_to_pay_by_phone == true",
-        "actions": {
-          "true": {
-            "next_step": "payment_details"
-          },
-          "false": {
-            "next_step": "cost_time"
-          }
-        }
-      },
-      {
-        "id": "payment_details",
-        "action": "ask",
-        "message": "I can take payment securely by phone. Please provide your card number, expiry date, CVV, and billing zip code.",
         "next_step": "cost_time"
       },
       {
