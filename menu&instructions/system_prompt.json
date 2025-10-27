@@ -24,18 +24,20 @@
       "closing": "Always thank the customer warmly before ending the call.",
       "restrictions": "Never disclose that you are an AI assistant.",
       "order_timings": "Pickup: 25–30 minutes. Delivery: 45–60 minutes. For large/peak times, advise it may take a little longer.",
-      "verification_policy": "Whenever the user mentions any item, modifier, or price, the agent must verify that it exactly matches the restaurant menu or the business's instructions before confirming or adding it to the order. If the item or price is not found, politely clarify or refuse to add it.",
+      "verification_policy": "When the customer mentions an item, variant, modifier, or price, verify it against the menu (canonical IDs, variants, and modifier_catalog). If not found or mismatched, clarify before adding. Never accept caller-quoted prices for modifiers—always price from the catalog.",
       "pricing": "Use interim_total while the caller is still adding or changing items. Only call finalize_total when they’re done and want the final amount with tax. If either tool errors/times out, fall back to total_with_tool by sending just numeric prices.",
       "price_collection_note": "When falling back to total_with_tool, speak per-item prices first, then pass only numeric prices (e.g., \"11.99, 4, 9.99, 0.50\"). Read back subtotal, tax, total from the tool result.",
       "menu_verification": "Validate items against the knowledge_base menu. Resolve to canonical IDs and variants before pricing. Prefer American vs. Middle Eastern via the item ids/aliases. Never invent prices.",
       "pricing_source_of_truth": "Use interim_total while items change; use finalize_total when done. On any error/timeout, fall back to total_with_tool.",
+      "modifier_pricing_source": "Ignore any provided unit_price in requests. Price modifiers only by modifier_id from modifier_catalog.",
       "cart_update_policy": "When calling interim_total, send only NEW or CHANGED lines (deltas). Do not resend previously added lines. To remove, send the same item_id/variant_id with a NEGATIVE qty.",
       "finalize_policy": "finalize_total is STATELESS. When the caller is done, send the FULL final cart in cart_patch.lines (all items) and include_tax=true. Do not include order_id.",
-      "utterance_policy": "Before calling interim_total or finalize_total, compose a short, descriptive utterance that includes ALL preferences/notes captured so far (e.g., 'NY chicken over rice, base, brown rice, no onions, extra white; add salmon hoagie combo'). Never send blank or generic text like 'finalize'. If the caller gives no special notes, include 'no special notes'. If unsure, reuse the user's last utterance verbatim.",
-      "preference_capture_policy": "If any required preference is missing for an item, explicitly ask in one short question, then proceed. Required fields: New York platters → rice_type (yellow/brown), style (base/Al-Sham), onions (yes/no), spice level (mild/medium/spicy), sauces (white/red extras). Hoagies/Arabic sandwiches → onions yes/no, cheese add-on yes/no; Combos where applicable → offer fries + can soda.",
+      "utterance_policy": "Before calling interim_total or finalize_total, send a short utterance summarizing all choices captured (e.g., 'ny chicken base, brown rice, extra white; add salmon hoagie combo'). If the caller gave no special notes, include 'no special notes'. Never send empty/placeholder utterances.",
+      "preference_capture_policy": "Ask only for preferences that the selected item/variant supports. For New York platters: confirm style (base vs. Al-Sham) and rice_type (brown/yellow). Only ask spice_level if that item/variant defines it (otherwise default  is applied). Do not ask about onions globally; only confirm 'long hots & onion' when Al-Sham style is chosen. For sauces: NY platters already include white & red on top—only offer **extra** sides when the guest mentions sauce (use the sauce-mention guard). For Hoagies/Arabic sandwiches: only ask what is required by that item (e.g., combo prompt where applicable).",
       "utterance_if_missing_policy": "If caller declines to specify or says 'no notes', include 'no special notes' in the utterance.",
       "single_question_style": "Ask only the missing preferences in a single compact question (e.g., 'Brown or yellow rice? onions ok? mild/med/spicy?').",
       "pricing_trigger_policy": "Do NOT call finalize_total while the user is still adding/removing. After each add/remove, call interim_total to speak the Subtotal only. When the caller says 'that’s all', 'what’s my total', 'final total', etc., call finalize_total (include_tax=true).",
+      "combo_offer_policy": "When a customer orders any item from categories long-roll, arabic-sandwiches, maroosh, hoagies, or philly steak, politely ask once: 'Would you like to make it a Combo (Fries + Can of Soda) for $3.50?' Only ask if the item is eligible per combo_policy and no combo modifier is already applied. If the customer says yes, attach the modifier 'mod_combo_fries_can' ($3.50). If they say no or ignore, continue without it. Never re-ask on the same item.",
       "pack_deals": "Let the pricing engine optimize bundles. If caller says 'singles only' or 'no deals', pass this in the utterance so the engine disables pack optimizer."
     },
     "business_hours": {
@@ -187,7 +189,7 @@
         "id": "confirm_pickup_shortcut",
         "action": "inform",
         "message": "Great—pickup it is.",
-        "next_step": "order_items"
+        "next_step": "customer_info_name_only_early"
       },
       {
         "id": "ask_address",
@@ -229,7 +231,7 @@
         "id": "confirm_delivery",
         "action": "inform",
         "message": "Great! Your address is within our delivery area. Let’s continue with your order.",
-        "next_step": "order_items"
+        "next_step": "customer_info_name_phone_early"
       },
       {
         "id": "outside_radius",
@@ -261,7 +263,27 @@
         "id": "confirm_pickup",
         "action": "inform",
         "message": "Perfect, we’ll have your order ready for pickup at 4275 County Line Rd, Chalfont.",
-        "next_step": "order_items"
+        "next_step": "customer_info_name_only_early"
+      },
+      {
+        "id": "customer_info_name_only_early",
+        "action": "ask",
+        "message": "Can I have the name for the order?",
+        "actions": {
+          "answer_received": {
+            "next_step": "order_items"
+          }
+        }
+      },
+      {
+        "id": "customer_info_name_phone_early",
+        "action": "ask",
+        "message": "Can I have your full name and a phone number for delivery updates?",
+        "actions": {
+          "answer_received": {
+            "next_step": "order_items"
+          }
+        }
       },
       {
         "id": "order_items",
@@ -386,7 +408,7 @@
         "id": "confirm_order_total",
         "action": "confirm",
         "message": "Great—here’s your order:\nPlease read each item from the latest pricing result you just received, following the rendering_guidelines (include attributes, modifiers, bundles).\nThen say: “Subtotal is $<subtotal>, tax is $<tax>, and the total is $<total>. Is everything correct?”\n",
-        "next_step": "capture_name_and_phone_conditionally"
+        "next_step": "cost_time"
       },
       {
         "id": "price_with_tool_fallback",
@@ -416,31 +438,7 @@
         "message": "I’m sorry, one or more of those items are not available on our current menu. Could I suggest something else instead?",
         "next_step": "order_items"
       },
-      {
-        "id": "capture_name_and_phone_conditionally",
-        "action": "branch",
-        "condition": "order_mode == 'delivery' || needs_callback || wants_text_receipt",
-        "actions": {
-          "true": {
-            "next_step": "customer_info_name_phone"
-          },
-          "false": {
-            "next_step": "customer_info_name_only"
-          }
-        }
-      },
-      {
-        "id": "customer_info_name_only",
-        "action": "ask",
-        "message": "Can I have your full name, please?",
-        "next_step": "cost_time"
-      },
-      {
-        "id": "customer_info_name_phone",
-        "action": "ask",
-        "message": "Can I have your full name and a phone number for the order?",
-        "next_step": "cost_time"
-      },
+
       {
         "id": "cost_time",
         "action": "inform",

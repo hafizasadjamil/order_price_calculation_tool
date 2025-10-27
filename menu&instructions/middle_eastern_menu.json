@@ -1713,17 +1713,7 @@
           "id": "hg-cajun-chicken",
           "name": "Cajun Chicken Hoagie",
           "price": 13.99,
-          "description": "With mayo, cheese, cajun spices, fried onions, green peppers, lettuce & tomatoes.",
-          "attributes": [
-            {
-              "id": "spice_level",
-              "allowed": [
-                "spicy"
-              ],
-              "default": "spicy",
-              "auto_set_if_omitted": true
-            }
-          ]
+          "description": "With mayo, cheese, cajun spices, fried onions, green peppers, lettuce & tomatoes."
         }
       ]
     },
