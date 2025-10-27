@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, Set, Tuple
 from app.utils.common import money
-
+#menu index file
 def _norm_cat_modifiers(cat) -> Dict[str, Optional[float]]:
     out: Dict[str, Optional[float]] = {}
     mods = cat.get("category_modifiers") or []

@@ -1,4 +1,7 @@
 from typing import Dict, Any, List, Optional
+
+from Tools.scripts.finddiv import processdir
+
 from app.config import TAX_RATE
 from app.utils.common import money
 from app.services.menu_loader import resolve_menu_for_line
@@ -6,7 +9,7 @@ from app.services.menu_index import (
     index_menu, resolve_unit, sum_mods, category_map
 )
 from app.utils.common import expand_modifiers_detail
-
+#calculation of the pri
 def _no_deals(u: str, pack_policy: Optional[dict]) -> bool:
     u = (u or "").lower()
     if not pack_policy:

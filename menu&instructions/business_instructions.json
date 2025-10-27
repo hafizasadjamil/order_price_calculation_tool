@@ -221,7 +221,7 @@
   },
   "developer_call_templates": {
     "interim_total": {
-      "url": "https://0914ac6f50d9.ngrok-free.app/tool/interim_total",
+      "url": "https://8bcc57b863db.ngrok-free.app/tool/interim_total",
       "method": "POST",
       "body": {
         "order_id": "CALL-{session_id}",
@@ -233,7 +233,7 @@
       "on_success_assign": "tool_result"
     },
     "finalize_total": {
-      "url": "https://0914ac6f50d9.ngrok-free.app/tool/finalize",
+      "url": "https://8bcc57b863db.ngrok-free.app/tool/finalize",
       "method": "POST",
       "body": {
         "cart_patch": {
