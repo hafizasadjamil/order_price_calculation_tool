@@ -2,7 +2,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import json
 from app.schemas.models import Line
 from app.services.pricing_engine import calc_core
 #tool file contain endpoints
@@ -52,3 +54,31 @@ def finalize(req: FinalizeReq):
     result["utterance"] = req.utterance or ""
     result["note"] = "Final: Tax + Total "
     return result
+
+
+
+@router.post("/webhook/summary")
+async def receive_summary(request: Request):
+    """
+    Receives a POST webhook from n8n with a JSON body like:
+    { "summary": "text summary here" }
+    Prints it neatly to the console.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(content={"error": "Invalid JSON"}, status_code=400)
+
+    print("\n" + "="*60)
+    print("📦  New Order Summary Received")
+    print("="*60)
+    print(json.dumps(body, indent=2))
+
+    # Extract the summary field (Option B)
+    summary = body.get("summary")
+
+    print("\n📝 Summary Text:")
+    print(summary if summary else "[No summary provided]")
+    print("="*60 + "\n")
+
+    return {"received": True, "summary_received": bool(summary)}
