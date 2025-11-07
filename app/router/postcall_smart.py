@@ -334,6 +334,17 @@ def _force_combo_if_affirmed(transcript: str, cart_lines: List[Dict[str,Any]]) -
         target["combo_opt_in"] = True
     return cart_lines
 
+def _build_name_index(menu_bundle: dict) -> dict:
+    idx = {}
+    for hint in ("american", "middle-eastern"):
+        menu = menu_bundle.get(hint) or {}
+        for cat in (menu.get("categories") or []):
+            for it in (cat.get("items") or []):
+                iid = it.get("id")
+                if iid:
+                    idx[(iid, hint)] = it.get("name") or iid
+    return idx
+
 
 def _summarize_menu_for_llm(menu_doc: dict, max_chars: int = 8000) -> str:
     """compact, token-friendly menu reference"""
@@ -995,6 +1006,14 @@ def ingest_eleven(payload: Dict[str, Any], request: Request):
         include_tax=True,
         menu_bundle=bundle,  # ← if you wire it through
     )
+
+    name_idx = _build_name_index(bundle)
+    for ln in (pricing.get("lines") or []):
+        # try to get the canonical id + hint from the pricing line
+        iid = (ln.get("src") or {}).get("item_id") or ln.get("item_id")
+        hint = ln.get("menu_hint") or (ln.get("src") or {}).get("menu_hint") or "middle-eastern"
+        if iid:
+            ln["desc"] = name_idx.get((iid, hint), ln.get("desc", iid))
 
     summary = _summarize(pricing, collected, call_meta=call_meta, transcript=transcript_text)
     if "text/plain" in (request.headers.get("accept","").lower()):
