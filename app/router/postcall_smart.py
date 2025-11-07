@@ -414,6 +414,13 @@ SAUCE GUARD
 
 DISAMBIGUATION
 - If ambiguous, omit and put a short reason in "reason".
+DRINKS (STRICT)
+- Beverage item_ids live only in the American menu (they start with "bev-").
+- Extract a drink ONLY if the caller explicitly orders it or clearly accepts with a drink mention.
+  Examples of order verbs: "I want Coke", "add a water", "get me a Snapple", "I'll have a can of soda".
+- DO NOT extract drinks when the caller is only asking (e.g., "do you have Sprite?", "what drinks do you have?") or when the agent is listing options.
+- If a main item is made a combo, do NOT add a separate fries or soda line unless the caller explicitly orders them as separate items.
+- If the caller specifies a drink flavor for a combo (e.g., "combo with Sprite"), do not add a separate beverage line; instead, put a short note like "Sprite for combo" in attributes._notes of the combo’d main line.
 
 MENU HINT
 - Set menu_hint using item_menu_hint[item_id].
