@@ -446,6 +446,8 @@ ON FAILURE
         rsp = client.chat.completions.create(
             model=EXTRACT_MODEL,
             temperature=0,
+            top_p=1,
+            seed=7,
             max_tokens=800,
             messages=[{"role":"system","content":system_prompt},
                       {"role":"user","content":user_prompt}],
@@ -715,6 +717,7 @@ HEADER (first):
 - Address (Delivery only)
 
 ITEMS:
+- write the name of the item not the id of the item
 - One bullet per line in pricing.lines; "QTY× ITEM [variant if not base] — $LINE_TOTAL"
 - If attributes exist: "(yellow rice, spicy, no onions)"
 - If modifiers_detail exist: " + <MOD_NAME> ×QTY ($AMT)"
@@ -746,6 +749,8 @@ STRICTNESS:
         rsp = client.chat.completions.create(
             model=SUMMARY_MODEL,
             temperature=0.2,
+            top_p=1,
+            seed=11,
             max_tokens=420,
             messages=[{"role":"system","content":sys},
                       {"role":"user","content":prompt_user}],
