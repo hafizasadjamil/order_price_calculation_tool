@@ -67,6 +67,87 @@ def _detect_order_type(transcript_text: str) -> str:
 
 def _get_caller_phone(payload: Dict[str, Any]) -> str:
     return (((payload.get("metadata") or {}).get("phone_call") or {}).get("external_number")) or ""
+def _enforce_explicit_combos(pricing: dict, src_lines: list) -> dict:
+    """
+    Ensure combos are charged ONLY when the source line explicitly had combo_opt_in=True.
+    If the pricing engine upsells combos automatically, remove those combo charges and
+    recompute totals safely.
+    """
+    if not pricing:
+        return pricing
+
+    def _attr_key(a: dict) -> tuple:
+        items = []
+        for k, v in (a or {}).items():
+            if k == "_notes":
+                items.append((k, tuple(str(x) for x in (v or []))))
+            else:
+                items.append((k, v if isinstance(v, (str, int, float, bool, type(None))) else str(v)))
+        return tuple(sorted(items))
+
+    # Build a lookup of "allowed combo lines" from extractor output
+    allow_combo_counts = {}
+    for ln in src_lines or []:
+        k = (
+            getattr(ln, "item_id", None),
+            getattr(ln, "variant_id", "base"),
+            getattr(ln, "menu_hint", "middle-eastern"),
+            _attr_key(getattr(ln, "attributes", {}) or {}),
+            tuple(sorted((m.modifier_id, int(m.qty or 1)) for m in (ln.modifiers or []))),
+        )
+        if getattr(ln, "combo_opt_in", False):
+            allow_combo_counts[k] = allow_combo_counts.get(k, 0) + getattr(ln, "qty", 1)
+
+    subtotal = 0.0
+    include_tax = bool(pricing.get("include_tax", True))
+    tax_rate = float(pricing.get("tax_rate", 0.0) or 0.0)
+
+    for ln in pricing.get("lines", []) or []:
+        src = ln.get("src") or {}
+        attrs = src.get("attributes") or ln.get("attributes") or {}
+        mods = src.get("modifiers") or ln.get("modifiers") or []
+        k = (
+            (src.get("item_id") or ln.get("item_id")),
+            (src.get("variant_id") or ln.get("variant_id") or "base"),
+            (src.get("menu_hint") or ln.get("menu_hint") or "middle-eastern"),
+            _attr_key(attrs),
+            tuple(sorted((m.get("modifier_id"), int(m.get("qty", 1))) for m in (mods or []) if m.get("modifier_id"))),
+        )
+
+        qty = int(ln.get("qty", 1) or 1)
+        combo_total = float(ln.get("combo_total", 0.0) or 0.0)
+
+        if combo_total > 0.0:
+            allowed = allow_combo_counts.get(k, 0)
+            if allowed <= 0:
+                # This line should NOT have combo — strip it
+                ln["combo_total"] = 0.0
+                try:
+                    ln["line_total"] = float(ln.get("line_total", 0.0) or 0.0) - combo_total
+                    if ln["line_total"] < 0:
+                        ln["line_total"] = 0.0
+                except Exception:
+                    pass
+            else:
+                # Consume allowed combos up to qty
+                allow_combo_counts[k] = max(0, allowed - qty)
+
+        try:
+            subtotal += float(ln.get("line_total", 0.0) or 0.0)
+        except Exception:
+            pass
+
+    # Recompute totals
+    pricing["subtotal"] = round(subtotal, 2)
+    if include_tax:
+        tax = round(subtotal * tax_rate, 2)
+        pricing["tax"] = tax
+        pricing["total"] = round(subtotal + tax, 2)
+    else:
+        pricing["tax"] = 0.0
+        pricing["total"] = round(subtotal, 2)
+
+    return pricing
 
 
 def _repair_llm_lines(raw_lines: list[dict]) -> list[dict]:
@@ -1080,7 +1161,7 @@ RULES:
         })
 
     # --- universal combo reconciliation (non-scenario) ---
-    sanitized = _force_combo_if_affirmed(transcript, sanitized)
+    # sanitized = _force_combo_if_affirmed(transcript, sanitized)
     sanitized = _reconcile_combo(transcript, sanitized)
 
     # --- enforce canonical menu hint ---
@@ -1090,7 +1171,6 @@ RULES:
         ln["menu_hint"] = "american" if hint == "american" else "middle-eastern"
 
     return {"cart_lines": sanitized, "reason": data.get("reason", "")}
-
 def _summarize(
     pricing: Dict[str, Any],
     collected: Dict[str, Any],
@@ -1099,12 +1179,15 @@ def _summarize(
     transcript: str | None = None,
 ) -> str:
     """
-    Unified summary generator.
-    - Always returns a human-readable summary with accurate status.
-    - Displays priced items if available, otherwise only call status.
-    - Does not alter behavior textually based on status (single source of truth).
+    Unified summary generator with optional LLM polish.
+    - Deterministic base summary from pricing + metadata.
+    - Then uses an LLM post-pass to improve readability (no changes to numbers or order details).
     """
     import json, re
+    from openai import OpenAI
+    import os
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     transcript = transcript or ""
     call_meta = (call_meta or {}).copy()
 
@@ -1149,7 +1232,6 @@ def _summarize(
     # ---------- NO ITEMS ----------
     lines = pricing.get("lines") or []
     if not lines:
-        # still show accurate one-liner summary when no items exist
         st = call_meta.get("status", "").lower()
         if st == "canceled":
             parts.append("Order canceled by caller.")
@@ -1162,368 +1244,94 @@ def _summarize(
             parts.append(f"Call transferred to {tgt.replace('_',' ')} (requested by caller).")
         else:
             parts.append("No order placed.")
-        return "\n".join(parts)
+        summary = "\n".join(parts)
+    else:
+        # ---------- ITEMS ----------
+        for ln in lines:
+            qty = int(ln.get("qty", 1))
+            desc = ln.get("desc") or ln.get("item_id", "?")
+            variant = (ln.get("variant_id") or "base")
+            item_str = f"- {qty}× {desc}"
+            if variant and variant != "base":
+                item_str += f" [{variant}]"
 
-    # ---------- ITEMS ----------
-    for ln in lines:
-        qty = int(ln.get("qty", 1))
-        desc = ln.get("desc") or ln.get("item_id", "?")
-        variant = (ln.get("variant_id") or "base")
-        item_str = f"- {qty}× {desc}"
-        if variant and variant != "base":
-            item_str += f" [{variant}]"
+            combo_total = float(ln.get("combo_total", 0.0) or 0.0)
+            line_total = float(ln.get("line_total", 0.0) or 0.0)
+            if line_total > 0:
+                item_str += f" — ${line_total:.2f}"
+            else:
+                item_str += " (price missing)"
 
-        # combo logic: only show if real combo_total > 0
-        combo_total = float(ln.get("combo_total", 0.0) or 0.0)
-        line_total = float(ln.get("line_total", 0.0) or 0.0)
-        if line_total > 0:
-            item_str += f" — ${line_total:.2f}"
-        else:
-            item_str += " (price missing)"
+            attrs = ln.get("attributes") or {}
+            bits = []
+            for raw in (attrs.get("_notes") or []):
+                s = " ".join(str(raw).split())
+                if s:
+                    bits.append(s)
+            if bits:
+                item_str += f" ({', '.join(bits)})"
 
-        attrs = ln.get("attributes") or {}
-        bits = []
-        for raw in (attrs.get("_notes") or []):
-            s = " ".join(str(raw).split())
-            if s:
-                bits.append(s)
-        if bits:
-            item_str += f" ({', '.join(bits)})"
+            if combo_total > 0:
+                item_str += " — Combo added"
+            parts.append(item_str)
 
-        if combo_total > 0:
-            item_str += " — Combo added"
-        parts.append(item_str)
+        # ---------- TOTALS ----------
+        subtotal = float(pricing.get("subtotal") or 0.0)
+        tax = float(pricing.get("tax") or 0.0)
+        total = float(pricing.get("total") or (subtotal + tax))
+        include_tax = bool(pricing.get("include_tax", True))
+        parts.append(f"Subtotal: ${subtotal:.2f}")
+        if include_tax:
+            parts.append(f"Tax: ${tax:.2f}")
+        parts.append(f"Total: ${total:.2f}")
 
-    # ---------- TOTALS ----------
-    subtotal = float(pricing.get("subtotal") or 0.0)
-    tax = float(pricing.get("tax") or 0.0)
-    total = float(pricing.get("total") or (subtotal + tax))
-    include_tax = bool(pricing.get("include_tax", True))
-    parts.append(f"Subtotal: ${subtotal:.2f}")
-    if include_tax:
-        parts.append(f"Tax: ${tax:.2f}")
-    parts.append(f"Total: ${total:.2f}")
+        # ---------- NOTES ----------
+        note_bits = []
+        for ln in lines:
+            raw = (ln.get("attributes") or {}).get("_notes") or []
+            if isinstance(raw, str):
+                raw = [raw]
+            for r in raw:
+                s = " ".join(str(r).split())
+                if s and s.lower() not in {n.lower() for n in note_bits}:
+                    note_bits.append(s)
+        if note_bits:
+            parts.append("Notes: " + ", ".join(note_bits))
 
-    # ---------- NOTES ----------
-    note_bits = []
-    for ln in lines:
-        raw = (ln.get("attributes") or {}).get("_notes") or []
-        if isinstance(raw, str):
-            raw = [raw]
-        for r in raw:
-            s = " ".join(str(r).split())
-            if s and s.lower() not in {n.lower() for n in note_bits}:
-                note_bits.append(s)
-    if note_bits:
-        parts.append("Notes: " + ", ".join(note_bits))
+        summary = "\n".join(parts)
 
-    return "\n".join(parts)
+    # ---------- LLM POLISH (safely rephrases) ----------
+    try:
+        sys_prompt = (
+            "You are a careful editor for restaurant order summaries.\n"
+            "Rephrase the following summary for clarity and flow, but:\n"
+            "- DO NOT change or remove any item names, quantities, prices, or totals.\n"
+            "- Keep all dollar amounts, numbers, and combo lines identical.\n"
+            "- Preserve the overall structure (Status, Order, Customer, Items, Totals, Notes).\n"
+            "If everything is already fine, return it unchanged."
+        )
+        user_prompt = f"Here is the summary:\n\n{summary}"
 
-#
-# def _summarize(
-#     pricing: Dict[str, Any],
-#     collected: Dict[str, Any],
-#     *,
-#     call_meta: Dict[str, Any] | None = None,
-#     transcript: str | None = None,
-# ) -> str:
-#     """
-#     Strong, merged summary generator.
-#     - Handles both: priced orders and no-order/info/canceled calls.
-#     - Never recomputes math; reads amounts from pricing.
-#     - Safe JSON serialization for LLM; deterministic fallback.
-#     """
-#     import json, re
-#
-#     def _json_safe(o):
-#         try:
-#             json.dumps(o); return o
-#         except Exception:
-#             for caster in (dict, list, str):
-#                 try: return caster(o)
-#                 except Exception: pass
-#             return str(o)
-#
-#     HINT_RE = re.compile(r"\b(singles?\s+only|no\s+deals|no\s+bundles)\b", re.I)
-#
-#     def _notes_from_attributes(lines: List[Dict[str, Any]]) -> list[str]:
-#         notes: list[str] = []
-#         for ln in lines or []:
-#             attrs = ln.get("attributes") or {}
-#             if attrs.get("no_onions") is True: notes.append("no onions")
-#             if attrs.get("no_tomatoes") is True: notes.append("no tomatoes")
-#             if attrs.get("extra_white_sauce") is True: notes.append("extra white sauce")
-#             if attrs.get("extra_red_sauce") is True: notes.append("extra red sauce")
-#             spice = (attrs.get("spice_level") or "").strip().lower()
-#             if spice in {"mild","medium","spicy"}: notes.append(spice)
-#             rice = (attrs.get("rice_type") or "").strip().lower()
-#             if rice in {"brown","yellow"}: notes.append(f"{rice} rice")
-#             style = (attrs.get("serving_style") or "").strip().lower()
-#             if style == "sauce_on_top": notes.append("sauce on top")
-#             elif style == "meat_on_side": notes.append("meat on the side")
-#             raw_notes = attrs.get("_notes")
-#             if isinstance(raw_notes, list):
-#                 notes.extend([str(n) for n in raw_notes if n])
-#             elif isinstance(raw_notes, str) and raw_notes.strip():
-#                 notes.append(raw_notes.strip())
-#         # de-dupe keep order
-#         seen=set(); out=[]
-#         for n in notes:
-#             k=n.lower().strip()
-#             if k not in seen: out.append(n); seen.add(k)
-#         return out
-#
-#     def _notes_from_transcript(t: str | None) -> list[str]:
-#         if not t: return []
-#         return list({m.lower() for m in HINT_RE.findall(t)})
-#
-#     def _build_status(cm: Dict[str, Any]) -> str:
-#         st = (cm.get("status") or "confirmed").lower()
-#         if st == "canceled":
-#             return "Status: Canceled by caller"
-#         if st in {"pending_address", "incomplete"}:
-#             return "Status: Incomplete — address needed"
-#         if st == "info":
-#             return "Status: Info-only call — no order placed"
-#         if st == "transfer_requested":
-#             tgt = (cm.get("transfer") or {}).get("target") or "human_agent"
-#             tdisp = tgt.replace("_", " ")
-#             return f"Status: Call transferred to {tdisp} (requested by caller)"
-#         if st == "no_order":
-#             return "Status: No order placed"
-#         return "Status: Confirmed"
-#
-#     transcript = transcript or ""
-#     call_meta = (call_meta or {}).copy()
-#
-#     # infer order_type if missing
-#     if not call_meta.get("order_type"):
-#         ot = (collected.get("order_type") or "unspecified").lower()
-#         call_meta["order_type"] = ot if ot in {"pickup","delivery","unspecified"} else "unspecified"
-#     # identity fallbacks
-#     call_meta.setdefault("customer_name", (collected.get("customer_name") or "").strip())
-#     call_meta.setdefault("phone", (collected.get("phone") or "").strip())
-#     call_meta.setdefault("address", (collected.get("address") or "").strip())
-#     call_meta.setdefault("status", call_meta.get("status","confirmed"))
-#     # ---------- NO-ORDER / INFO-ONLY / CANCELED path ----------
-#     if not (pricing.get("lines") or []):
-#         st = (call_meta.get("status") or "").lower()
-#         if st == "canceled":
-#             return "Order canceled by caller."
-#         if st in {"pending_address", "incomplete"}:
-#             return "Incomplete order — address needed."
-#         if st == "info":
-#             return "Info-only call — no order placed."
-#         if st == "transfer_requested":
-#             tgt = (call_meta.get("transfer") or {}).get("target") or "human_agent"
-#             tdisp = {"human_agent": "human agent"}.get(tgt, tgt.replace("_", " "))
-#             return f"Status: Call transferred to {tdisp} (requested by caller)\nNo order placed."
-#         if st == "no_order":
-#             return "No order placed."
-#         return "No order placed."
-#
-#         # ---------- NO-ORDER / INFO-ONLY / CANCELED path ----------
-# #     if not (pricing.get("lines") or []):
-# #         sys_prompt = """You are a polite restaurant assistant.
-# # Summarize the call in ONE short sentence (no JSON).
-# # Use exactly one of:
-# # - "Order canceled by caller."
-# # - "Info-only call — no order placed."
-# # - "Call ended before confirming any order."
-# # - "Incomplete order — delivery address missing."
-# # - "No order placed."
-# # Decide from the transcript & context only."""
-# #         user_prompt = (
-# #             f"Transcript tail:\n{(transcript or '')[-1000:]}\n\n"
-# #             f"Collected: {json.dumps(collected, default=_json_safe)}\n"
-# #             f"Meta: {json.dumps(call_meta, default=_json_safe)}"
-# #         )
-# #         try:
-# #             rsp = client.chat.completions.create(
-# #                 model=SUMMARY_MODEL,
-# #                 temperature=0,
-# #                 max_tokens=60,
-# #                 messages=[{"role":"system","content":sys_prompt},
-# #                           {"role":"user","content":user_prompt}],
-# #             )
-# #             text = (rsp.choices[0].message.content or "").strip()
-# #             if text: return text
-# #         except Exception:
-# #             pass  # fall back below
-#
-#         # heuristic fallback
-#         t = (transcript or "").lower()
-#         if any(k in t for k in ("cancel", "never mind", "nevermind", "forget it", "no order")):
-#             return "Order canceled by caller."
-#         if call_meta.get("order_type") == "delivery" and not call_meta.get("address"):
-#             return "Incomplete order — delivery address missing."
-#         if any(k in t for k in ("hour","time","open","close","address","location","where are you",
-#                                 "menu","price","how much","deliver to","delivery radius")):
-#             return "Info-only call — no order placed."
-#         return "No order placed."
-#
-#     # ---------- PRICED ORDER path ----------
-#     sys = '''You are a precise restaurant agent. Produce a SHORT, human-friendly order recap from given Pricing JSON + metadata.
-#     — NO markdown, NO bold symbols, NO asterisks.
-# Use simple plain text formatting only.
-# HEADER (first lines):
-# - Always start with the canonical status line from call_meta.status.
-#   Examples:
-#     confirmed → "Status: Confirmed"
-#     pending_address → "Status: Incomplete — address needed"
-#     canceled → "Status: Canceled by caller"
-#     call_cut → "Status: incomplete"
-#     info → "Status: Info-only call — no order placed"
-#     transfer_requested → "Status: Call transferred to {target} (requested by caller)"
-#     no_order → "Status: No order placed"
-# - Never infer or restate status differently.
-#
-# - Order: <Pickup|Delivery|Unspecified>
-# - Name:
-# - Phone: (if present)
-# - Address: (Delivery only)
-#
-# ITEMS:
-# - write the name of the item not the id of the item
-# - One bullet per line in pricing.lines; "QTY× ITEM [variant if not base] — $LINE_TOTAL"
-# - If attributes exist: "(yellow rice, spicy, no onions)"
-# - If modifiers_detail exist: " + <MOD_NAME> ×QTY ($AMT)"
-# - If combo_total > 0: append " — Combo added"
-#
-# TOTALS:
-# - "Subtotal: $X" (+ "Tax: $Y" if include_tax) and "Total: $Z"
-#
-#
-# NOTES:
-# - Show one "Notes:" line only if attributes._notes exist in pricing lines.
-# - Use attributes._notes verbatim; do not infer or add transcript hints.
-# # - One "Notes:" line if any (attributes booleans/notes + transcript hints like "singles only", "no deals").
-# POST-ORDER NOTES:
-# - If status=canceled, append one sentence: "Order canceled by caller."
-# - If status=transfer_requested, append one sentence: "Call transferred to {target} (requested by caller)."
-# - If status=call_cut, append one sentence: "Call ended before confirming any order."
-# - These lines appear after totals, never before.
-# ITEM LABELS:
-# - Always display the human-readable item name from pricing.lines.desc (never show internal item_id).
-#
-# STRICTNESS:
-# - Never recompute math; only use provided amounts.
-# - Only mention "Combo added" when combo_total > 0.
-# - No raw JSON; keep within ~10 lines + Notes.'''
-#
-#     try:
-#         pricing_json = json.dumps(pricing, default=_json_safe)
-#         prompt_user = (
-#             "Render a concise receipt-like summary.\n\n"
-#             f"Collected: {json.dumps(collected, default=_json_safe)}\n"
-#             f"Meta: {json.dumps(call_meta, default=_json_safe)}\n"
-#             f"Pricing JSON:\n{pricing_json}\n\n"
-#             f"Transcript tail (hints only):\n{(transcript or '')[-600:]}"
-#         )
-#         rsp = client.chat.completions.create(
-#             model=SUMMARY_MODEL,
-#             temperature=0.2,
-#             top_p=1,
-#             seed=11,
-#             max_tokens=420,
-#             messages=[{"role":"system","content":sys},
-#                       {"role":"user","content":prompt_user}],
-#         )
-#         text = (rsp.choices[0].message.content or "").strip()
-#         # Remove Markdown bold (**text**) and underscores
-#         text = re.sub(r'[*_]{2,}', '', text)
-#
-#         if text:
-#             return text
-#     except Exception:
-#         pass
-#
-#     # deterministic fallback
-#     cur = pricing.get("currency","USD")
-#     subtotal = float(pricing.get("subtotal",0.0) or 0.0)
-#     tax = float(pricing.get("tax",0.0) or 0.0)
-#     total = float(pricing.get("total", subtotal + tax) or 0.0)
-#     include_tax = bool(pricing.get("include_tax", True))
-#
-#     parts: list[str] = []
-#     parts.append(_build_status(call_meta))
-#     parts.append(f"Order: {(call_meta.get('order_type') or 'unspecified').title()}")
-#     name = (call_meta.get("customer_name") or "").strip()
-#     phone = (call_meta.get("phone") or "").strip()
-#     if name or phone:
-#         parts.append(f"Customer: {name or '—'}{' • ' + phone if phone else ''}")
-#     if call_meta.get("order_type") == "delivery":
-#         parts.append(f"Address: {call_meta.get('address') or '—'}")
-#
-#     for ln in pricing.get("lines", []) or []:
-#         qty = int(ln.get("qty",1))
-#         desc = ln.get("desc","?")
-#         variant = (ln.get("variant_id") or "base")
-#         line_total = float(ln.get("line_total",0.0) or 0.0)
-#         item_str = f"- {qty}× {desc}"
-#         if variant and variant != "base":
-#             item_str += f" [{variant}]"
-#         if line_total <= 0.0 and not ln.get("optimizer", False) and not ln.get("promo", False):
-#             item_str += " (price missing)"
-#             log.warning(f"Zero-price item detected: {ln.get('item_id')}")
-#         else:
-#             item_str += f" — ${line_total:.2f}"
-#         attrs = ln.get("attributes") or {}
-#         bits=[]
-#         rice = (attrs.get("rice_type") or "").strip().lower()
-#         if rice in {"yellow","brown"}: bits.append(f"{rice} rice")
-#         spice=(attrs.get("spice_level") or "").strip().lower()
-#         if spice in {"mild","medium","spicy"}: bits.append(spice)
-#         if attrs.get("no_onions") is True: bits.append("no onions")
-#         if attrs.get("no_tomatoes") is True: bits.append("no tomatoes")
-#         if attrs.get("extra_white_sauce") is True: bits.append("extra white sauce")
-#         if attrs.get("extra_red_sauce") is True: bits.append("extra red sauce")
-#         style=(attrs.get("serving_style") or "").strip().lower()
-#         if style=="sauce_on_top": bits.append("sauce on top")
-#         elif style=="meat_on_side": bits.append("meat on the side")
-#         raw_notes = attrs.get("_notes")
-#         if isinstance(raw_notes, list): bits.extend([str(x) for x in raw_notes if x])
-#         elif isinstance(raw_notes, str) and raw_notes.strip(): bits.append(raw_notes.strip())
-#         if bits:
-#             seen=set(); ab=[]
-#             for s in bits:
-#                 k=s.lower().strip()
-#                 if k not in seen: ab.append(s); seen.add(k)
-#             item_str += " (" + ", ".join(ab) + ")"
-#         if float(ln.get("combo_total",0.0) or 0.0) > 0.0:
-#             item_str += " — Combo added"
-#         parts.append(item_str)
-#
-#     parts.append(f"Subtotal: ${subtotal:.2f}")
-#     if include_tax: parts.append(f"Tax: ${tax:.2f}")
-#     parts.append(f"Total: ${total:.2f}")
-#
-#     # note_bits = _notes_from_attributes(pricing.get("lines", []) or [])
-#     # note_bits.extend(_notes_from_transcript(transcript))
-#     note_bits = []
-#     for ln in (pricing.get("lines") or []):
-#         raw = (ln.get("attributes") or {}).get("_notes") or []
-#         if isinstance(raw, str):
-#             raw = [raw]
-#         for r in raw:
-#             s = " ".join(str(r).split())
-#             if s:
-#                 note_bits.append(s)
-#
-#     # dedupe preserving order
-#     seen = set();
-#     final = []
-#     for n in note_bits:
-#         k = n.lower()
-#         if k not in seen:
-#             final.append(n)
-#             seen.add(k)
-#
-#     if final:
-#         parts.append("Notes: " + ", ".join(final))
-#
-#     return "\n".join(parts)
-#
+        rsp = client.chat.completions.create(
+            model=os.getenv("SUMMARY_MODEL", "gpt-4o-mini"),
+            temperature=0,
+            top_p=1,
+            seed=17,
+            max_tokens=420,
+            messages=[{"role": "system", "content": sys_prompt},
+                      {"role": "user", "content": user_prompt}],
+        )
+        polished = (rsp.choices[0].message.content or "").strip()
+
+        # Safety: ensure prices and qtys match
+        old_nums = set(re.findall(r"\$\d+\.\d{2}|\d+×", summary))
+        new_nums = set(re.findall(r"\$\d+\.\d{2}|\d+×", polished))
+        if old_nums == new_nums:
+            return polished
+    except Exception:
+        pass
+
+    return summary
 
 
 # @router.post("/ingest_eleven")
@@ -1557,12 +1365,25 @@ def ingest_eleven(payload: Dict[str, Any], request: Request):
     pricing = None
     priced_lines_exist = False
     if line_models:
-        pricing = calc_core(
-            payload_cart=line_models,
-            payload_utterance=t_user_only,
-            include_tax=True,
-            menu_bundle=bundle,
-        )
+        try:
+            pricing = calc_core(
+                payload_cart=line_models,
+                payload_utterance=t_user_only,
+                include_tax=True,
+                menu_bundle=bundle,
+                combo_mode="explicit",  # preferred if supported
+                allow_auto_combo=False
+            )
+        except TypeError:
+            # older calc_core signature
+            pricing = calc_core(
+                payload_cart=line_models,
+                payload_utterance=t_user_only,
+                include_tax=True,
+                menu_bundle=bundle,
+            )
+            pricing = _enforce_explicit_combos(pricing, line_models)  # <- hard guard
+
         priced_lines_exist = bool((pricing.get("lines") or []))
 
         # ID→Name
