@@ -1,6 +1,6 @@
 # app/router/rest_ingest_v2.py
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any, List
+from typing import Dict, Any, List,Tuple
 import os, json, re
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -20,10 +20,51 @@ EXTRACT_MODEL = os.getenv("EXTRACTOR_MODEL", "gpt-4o-mini")
 SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", "gpt-4o-mini")
 
 
-
+COMBO_MOD_RE = re.compile(r"(combo|fries.*(can|soda)|fries.*drink)", re.I)
 NAME_RE = re.compile(r"The user,\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
 PICKUP_RE = re.compile(r"\b(pick\s*up|pickup|pick-up)\b", re.I)
 DELIVERY_RE = re.compile(r"\bdeliver(y)?\b", re.I)
+# Tokens for explicit packs
+PACK_TOKENS_RE = re.compile(r"\b(pack|deal|combo|pcs|pieces|piece|pc)\b", re.I)
+# Per-item piece sizes you support (customize per menu)
+
+
+def _is_appetizer(iid: str, schema_ctx: dict) -> bool:
+    cat = (schema_ctx.get("category_by_item") or {}).get(iid, "")
+    return bool(cat and ("appetizer" in cat.lower() or cat.lower().startswith("app-")))
+
+def _normalize_appetizer_packs(transcript: str, lines: list[dict], schema_ctx: dict) -> list[dict]:
+    """
+    If user said '5 samosas' with no pack token, make it qty=5, variant='single'.
+    If user said '5 pcs' or 'pack', keep/flip to a pack variant if it exists, otherwise leave as explicit qty singles.
+    """
+    t = (transcript or "").lower()
+    is_pack_context = bool(PACK_TOKENS_RE.search(t))
+
+    out = []
+    for ln in (lines or []):
+        iid = ln.get("item_id","")
+        if not _is_appetizer(iid, schema_ctx):
+            out.append(ln); continue
+
+        qty = int(ln.get("qty", 1) or 1)
+        vid = ln.get("variant_id") or "base"
+        valid_vs = (schema_ctx.get("variants_by_item") or {}).get(iid) or ["base"]
+
+        if is_pack_context:
+            # if a pack variant exists in your catalog and qty=1, keep as pack; else leave as-is
+            # (we avoid inventing pack math; pricing engine can still optimize)
+            out.append(ln)
+            continue
+
+        # No pack token → singles semantics
+        if "single" in valid_vs:
+            ln["variant_id"] = "single"
+        elif "base" in valid_vs:
+            ln["variant_id"] = "base"
+        # qty stays whatever the user said; pricing can still convert later if it has pack optimizers
+        out.append(ln)
+    return out
 
 def _flatten_eleven_transcript(payload: Dict[str, Any], include_agent: bool = True) -> str:
     """
@@ -218,6 +259,106 @@ def _build_item_context(bundle: dict) -> tuple[dict, dict, dict]:
 
     return item_names_by_id, aliases_by_item, category_by_item
 
+def _merge_duplicate_lines(cart: List[Dict]) -> List[Dict]:
+    """
+    Merge logically-identical cart lines by summing qty.
+    Identity key includes:
+      - item_id
+      - variant_id (default "base")
+      - menu_hint (default "middle-eastern")
+      - combo_opt_in (bool)
+      - attributes (notes-only, order-insensitive)
+      - normalized modifiers (sorted by id, aggregated qty)
+    """
+    def _norm_mods(mods: List[Dict]) -> Tuple[Tuple[str, int], ...]:
+        acc = {}
+        for m in mods or []:
+            if not isinstance(m, dict):
+                continue
+            mid = str(m.get("modifier_id") or "").strip()
+            if not mid:
+                continue
+            try:
+                mqty = int(m.get("qty", 1) or 1)
+            except Exception:
+                mqty = 1
+            if mqty < 1:
+                mqty = 1
+            acc[mid] = acc.get(mid, 0) + mqty
+        # sorted, immutable form for key; also used to rehydrate merged line
+        return tuple(sorted(acc.items()))
+
+    def _attr_key(attrs: Dict) -> Tuple[Tuple[str, Tuple[str, ...]], ...]:
+        """
+        Only consider notes for identity. Coerce to tuple, order-insensitive, deduped.
+        """
+        if not isinstance(attrs, dict):
+            return tuple()
+        notes = attrs.get("_notes")
+        if notes is None:
+            return tuple()
+        if isinstance(notes, str):
+            notes = [notes]
+        # trim whitespace, keep short (≤80 chars), dedupe case-insensitively
+        clean, seen = [], set()
+        for n in notes or []:
+            s = " ".join(str(n).split())[:80]
+            k = s.lower()
+            if s and k not in seen:
+                clean.append(s)
+                seen.add(k)
+        return (("_notes", tuple(sorted(clean))),) if clean else tuple()
+
+    acc = {}
+    order = []  # preserve first-seen order of keys
+
+    for ln in cart or []:
+        if not isinstance(ln, dict):
+            continue
+
+        iid = str(ln.get("item_id") or "").strip()
+        if not iid:
+            continue
+
+        vid  = (ln.get("variant_id") or "base")
+        hint = (ln.get("menu_hint") or "middle-eastern")
+        combo = bool(ln.get("combo_opt_in", False))
+
+        # normalize modifiers for identity and storage
+        mods_key = _norm_mods(ln.get("modifiers"))
+        attrs_key = _attr_key(ln.get("attributes") or {})
+
+        key = (iid, vid, hint, combo, mods_key, attrs_key)
+
+        # coerce qty
+        try:
+            qty = max(1, int(ln.get("qty", 1) or 1))
+        except Exception:
+            qty = 1
+
+        if key not in acc:
+            # create a normalized copy
+            base = {
+                "item_id": iid,
+                "variant_id": vid,
+                "menu_hint": hint,
+                "combo_opt_in": combo,
+                "qty": qty,
+                # rehydrate modifiers from mods_key
+                "modifiers": [{"modifier_id": mid, "qty": mqty} for mid, mqty in mods_key],
+                # rehydrate attributes from attrs_key
+                "attributes": {"_notes": list(attrs_key[0][1])} if attrs_key else {},
+            }
+            # carry through any extra (safe) fields if present
+            for extra in ("desc", "src"):
+                if extra in ln:
+                    base[extra] = ln[extra]
+            acc[key] = base
+            order.append(key)
+        else:
+            acc[key]["qty"] += qty
+
+    return [acc[k] for k in order]
 
 def _load_menu_bundle(pref_slug: str | None = None) -> dict:
     """
@@ -256,9 +397,14 @@ def _handoff_from_payload(payload: Dict[str, Any]) -> dict | None:
 # TRANSFER_RE = re.compile(r"\b(transfer|connect|speak to|talk to)\b.*\b(manager|owner|chef|kitchen|human|agent)\b", re.I)
 CALLCUT_RE = re.compile(r"\b(call (dropped|cut)|hello\?\s*you there|are you there\??|disconnected)\b", re.I)
 INFO_HINTS_RE = re.compile(r"\b(hours?|open|close|address|location|where are you|menu|price|how much|deliver(y)? radius|do you have)\b", re.I)
-
-TRANSFER_RE = re.compile(r"\b(transfer|connect|speak|talk|forward|send)\b.*\b(manager|owner|chef|kitchen|human|agent|store|restaurant)\b", re.I)
-
+PAYMENT_ISSUE_RE = re.compile(
+    r"\b(online (order|payment)|card (not|isn'?t) working|payment (issue|problem|failed|declined)|refund|charge\s*back|charged\s*twice|app (issue|problem))\b",
+    re.I,
+)
+TRANSFER_RE = re.compile(
+    r"\b(transfer|connect|speak|talk|forward|send|pass|put.*through)\b.*\b(manager|owner|chef|kitchen|human|agent|store|restaurant|cashier|front\s*desk|billing|payment)\b",
+    re.I,
+)
 def _detect_transfer(t: str) -> dict | None:
     m = TRANSFER_RE.search(t or "")
     if not m: return None
@@ -270,6 +416,43 @@ def _detect_transfer(t: str) -> dict | None:
     else: target = "human_agent"
     return {"requested": True, "target": target}
 
+
+def _detect_transfer_both_sides(t_with_agent: str, t_user_only: str) -> dict | None:
+    # 1) Any explicit transfer phrase by agent wins immediately
+    for line in (t_with_agent or "").splitlines():
+        if line.startswith("Agent:") and TRANSFER_RE.search(line):
+            m = TRANSFER_RE.search(line)
+            target_raw = m.group(2).lower() if m else ""
+            if "manager" in target_raw: target = "manager"
+            elif "chef" in target_raw or "kitchen" in target_raw: target = "kitchen"
+            elif "owner" in target_raw: target = "owner"
+            elif "store" in target_raw or "restaurant" in target_raw or "cashier" in target_raw or "front" in target_raw or "billing" in target_raw or "payment" in target_raw:
+                target = "store_number"
+            else:
+                target = "human_agent"
+            return {"requested": True, "target": target}
+
+    # 2) User explicitly requests transfer
+    if TRANSFER_RE.search(t_user_only or ""):
+        m = TRANSFER_RE.search(t_user_only)
+        target_raw = m.group(2).lower() if m else ""
+        if "manager" in target_raw: target = "manager"
+        elif "chef" in target_raw or "kitchen" in target_raw: target = "kitchen"
+        elif "owner" in target_raw: target = "owner"
+        elif "store" in target_raw or "restaurant" in target_raw or "billing" in target_raw or "payment" in target_raw:
+            target = "store_number"
+        else:
+            target = "human_agent"
+        return {"requested": True, "target": target}
+
+    # 3) Payment/online-order issue + any agent promise to transfer (implicit)
+    if PAYMENT_ISSUE_RE.search(t_with_agent or ""):
+        # Heuristic: if agent says "I'll transfer / connect / forward you"
+        agent_offers = re.search(r"Agent:.*\b(transfer|connect|forward|send|put.*through)\b", t_with_agent or "", re.I)
+        if agent_offers:
+            return {"requested": True, "target": "store_number"}
+
+    return None
 
 def _detect_call_cut(t: str) -> bool:
     return bool(CALLCUT_RE.search(t or ""))
@@ -308,6 +491,121 @@ def _last_intent_wins(transcript: str, schema_ctx: dict, cart_lines: list[dict],
         return False
     return True  # final intent truly cancel
 
+GENERIC_APP_IDS = {"app-single", "appetizer-single", "app-1pc", "app-single-1pc"}  # adjust to your real IDs
+from typing import Callable
+
+CategoryPolicy = Callable[[str, List[Dict], dict], List[Dict]]
+
+def _policy_appetizers(transcript: str, lines: List[Dict], schema_ctx: dict) -> List[Dict]:
+    # singles-by-default unless explicit pack tokens found in transcript
+    lines = _normalize_appetizer_packs(transcript, lines, schema_ctx)
+    return lines
+
+def _policy_drinks(transcript: str, lines: List[Dict], schema_ctx: dict) -> List[Dict]:
+    # remove drinks unless explicitly ordered (you already enforce in prompt; this is a second guard)
+    out = []
+    bev_ids = schema_ctx.get("beverage_item_ids") or set()
+    said_drink = bool(re.search(r"\b(water|coke|sprite|fanta|snapple|can of soda|soda|drink|juice|tea)\b", transcript.lower()))
+    for ln in lines or []:
+        if ln.get("item_id") in bev_ids and not said_drink:
+            # keep only if combo notes explicitly say a drink choice
+            notes = ((ln.get("attributes") or {}).get("_notes") or [])
+            if not any("for combo" in str(n).lower() for n in notes):
+                continue
+        out.append(ln)
+    return out
+
+def _policy_combos(transcript: str, lines: List[Dict], schema_ctx: dict) -> List[Dict]:
+    return _reconcile_combo(transcript, lines)
+
+def _priceability_gate(lines: List[Dict], schema_ctx: dict) -> Tuple[List[Dict], List[str]]:
+    reasons = []
+    vmap = schema_ctx.get("variants_by_item") or {}
+    out = []
+    for ln in lines or []:
+        iid = ln.get("item_id")
+        vid = ln.get("variant_id") or "base"
+        valid = vmap.get(iid) or ["base"]
+        if vid not in valid:
+            # deterministic repair
+            fix = "single" if "single" in valid else ("base" if "base" in valid else valid[0])
+            if fix != vid:
+                ln["variant_id"] = fix
+        # after repair, recheck
+        if (ln.get("variant_id") or "base") not in (vmap.get(iid) or []):
+            reasons.append(f"Unpriceable line dropped: {iid} [{vid}]")
+            continue
+        out.append(ln)
+    return out, reasons
+
+# map by *category label contains* to a policy func
+CATEGORY_POLICIES: list[tuple[re.Pattern, CategoryPolicy]] = [
+    (re.compile(r"appetizer", re.I), _policy_appetizers),
+    (re.compile(r"drink|beverage|bev", re.I), _policy_drinks),
+    # (re.compile(r".*"), _policy_combos),  # combos apply to all categories
+]
+
+def _apply_category_policies(transcript: str, lines: List[Dict], schema_ctx: dict) -> List[Dict]:
+    """Apply all matching category policies to each line."""
+    cat_by_item = schema_ctx.get("category_by_item") or {}
+    grouped: Dict[str, List[Dict]] = {}
+    for ln in lines or []:
+        cid = cat_by_item.get(ln.get("item_id"), "")
+        grouped.setdefault(cid, []).append(ln)
+
+    out = []
+    for cid, group in grouped.items():
+        g = group
+        for pat, policy in CATEGORY_POLICIES:
+            if pat.search(cid or ""):
+                g = policy(transcript, g, schema_ctx)
+        out.extend(g)
+    return out
+
+def _drop_generic_appetizer_placeholders(lines: list[dict]) -> list[dict]:
+    item_ids = {ln.get("item_id") for ln in (lines or [])}
+    has_concrete_app = any((iid not in GENERIC_APP_IDS) and iid for iid in item_ids)
+    if not has_concrete_app:
+        return lines
+    return [ln for ln in (lines or []) if ln.get("item_id") not in GENERIC_APP_IDS]
+
+def _index_placeholders(menu_bundle: dict) -> set[str]:
+    """
+    Detect generic/placeholder items via common heuristics in *any* category.
+    If your JSON can mark them (e.g., is_placeholder: true), prefer that.
+    """
+    placeholders = set()
+    keys = ("placeholder", "generic", "any", "single", "build your own", "choose one")
+    for hint in ("american", "middle-eastern"):
+        menu = menu_bundle.get(hint) or {}
+        for cat in (menu.get("categories") or []):
+            for it in (cat.get("items") or []):
+                iid = it.get("id")
+                nm  = (it.get("name") or "").lower()
+                if it.get("is_placeholder") is True:
+                    placeholders.add(iid); continue
+                if any(k in nm for k in keys):
+                    placeholders.add(iid)
+    return placeholders
+
+
+def _prefer_specific_over_placeholder(lines: List[Dict], schema_ctx: dict, placeholders: set[str]) -> List[Dict]:
+    cat_by_item = schema_ctx.get("category_by_item") or {}
+    # group by category_id
+    by_cat: Dict[str, List[Dict]] = {}
+    for ln in lines or []:
+        iid = ln.get("item_id")
+        cid = cat_by_item.get(iid, "")
+        by_cat.setdefault(cid, []).append(ln)
+
+    out = []
+    for cid, group in by_cat.items():
+        has_specific = any(g.get("item_id") not in placeholders for g in group)
+        if has_specific:
+            out.extend([g for g in group if g.get("item_id") not in placeholders])
+        else:
+            out.extend(group)
+    return out
 
 
 import logging
@@ -477,8 +775,12 @@ def _normalize_to_lines(cart_lines: list) -> list[Line]:
                 mid = m.get("modifier_id")
                 if not mid:
                     continue
+                # NEW: ignore combo-like modifiers at normalization time
+                if COMBO_MOD_RE.search(str(mid)):
+                    continue
                 qty = int(m.get("qty", 1))
                 mods_accum[mid] = mods_accum.get(mid, 0) + qty
+
             d["modifiers"] = [Mod(modifier_id=k, qty=v) for k, v in mods_accum.items()]
 
             d.setdefault("variant_id", "base")
@@ -603,47 +905,48 @@ def _resolve_status(
         return "confirmed"
     return "no_order"
 
-# def _resolve_status_and_pricing_visibility(
-#     *,
-#     transcript: str,
-#     collected: Dict[str, Any],
-#     schema_ctx: dict,
-#     extracted_lines: list[dict],
-#     priced_lines_exist: bool,
-#     transfer_info: dict | None,
-#     cancel_seen: bool,
-#     call_cut_seen: bool,
-#     info_only: bool,
-# ) -> tuple[str, bool]:
-#     """
-#     Returns (final_status, show_pricing_bool)
-#     Deterministic logic: pricing only if order exists.
-#     """
-#     order_seen = bool(extracted_lines)
-#     final_cancel = _last_intent_wins(transcript, schema_ctx, extracted_lines, cancel_seen)
-#     delivery_missing = (
-#         (collected.get("order_type") or "").lower() == "delivery"
-#         and not (collected.get("address") or "").strip()
-#     )
-#
-#     # unified deterministic matrix
-#     if order_seen and not final_cancel:
-#         status = "pending_address" if delivery_missing else "confirmed"
-#     elif transfer_info:
-#         status = "transfer_requested"
-#     elif final_cancel:
-#         status = "canceled"
-#     elif call_cut_seen:
-#         status = "incomplete"
-#     elif info_only:
-#         status = "info"
-#     else:
-#         status = "no_order"
-#
-#     # pricing: only if actual priced items exist
-#     show_pricing = bool(priced_lines_exist)
-#
-#     return status, show_pricing
+
+def _resolve_status_and_pricing_visibility(
+    *,
+    transcript: str,
+    collected: Dict[str, Any],
+    schema_ctx: dict,
+    extracted_lines: list[dict],
+    priced_lines_exist: bool,
+    transfer_info: dict | None,
+    cancel_seen: bool,
+    call_cut_seen: bool,
+    info_only: bool,
+) -> tuple[str, bool]:
+    """
+    Returns (final_status, show_pricing_bool)
+    Deterministic logic: pricing only if order exists.
+    """
+    order_seen = bool(extracted_lines)
+    final_cancel = _last_intent_wins(transcript, schema_ctx, extracted_lines, cancel_seen)
+    delivery_missing = (
+        (collected.get("order_type") or "").lower() == "delivery"
+        and not (collected.get("address") or "").strip()
+    )
+
+    # unified deterministic matrix
+    if order_seen and not final_cancel:
+        status = "pending_address" if delivery_missing else "confirmed"
+    elif transfer_info:
+        status = "transfer_requested"
+    elif final_cancel:
+        status = "canceled"
+    elif call_cut_seen:
+        status = "incomplete"
+    elif info_only:
+        status = "info"
+    else:
+        status = "no_order"
+
+    # pricing: only if actual priced items exist
+    show_pricing = bool(priced_lines_exist)
+
+    return status, show_pricing
 
 # ALSHAM_RE = re.compile(r"\b(al[-\s]?sham|alsham)\b", re.I)
 # def _inject_alsham_style(transcript: str, lines: List[Dict[str,Any]]) -> List[Dict[str,Any]]:
@@ -728,261 +1031,6 @@ def _inject_rice_attribute(transcript: str, lines: List[Dict[str, Any]]) -> List
         d["attributes"] = attrs
         out.append(d)
     return out
-# ---------- LLM phase 1: extract cart (smart + general) ----------
-# def _extract_cart(transcript: str, schema_ctx: dict) -> Dict[str, Any]:
-#     """
-#     Extract cart using a union of both menus passed in schema_ctx:
-#     { allowed_item_ids, allowed_modifier_ids, variants_by_item, item_menu_hint }
-#     """
-#     item_ids = schema_ctx["allowed_item_ids"]
-#     modifier_ids = schema_ctx["allowed_modifier_ids"]
-#     variants_by_item = schema_ctx["variants_by_item"]
-#     item_menu_hint = schema_ctx["item_menu_hint"]
-#     # --- seed obvious items from alias map so the LLM can’t drop them
-#     # alias_idx = _build_alias_index_from_bundle(schema_ctx.get("_menus") or {})
-#     # alias_seeds = _seed_cart_from_aliases(transcript, alias_idx)
-#     item_names_by_id = schema_ctx["item_names_by_id"]
-#     aliases_by_item = schema_ctx["aliases_by_item"]
-#     category_by_item = schema_ctx["category_by_item"]
-#
-#     system_prompt = '''You are a STRICT restaurant order extractor.
-#
-# OUTPUT CONTRACT
-# - Return ONLY valid JSON with keys:
-#   { "cart_lines": [ {item_id, qty, variant_id, combo_opt_in, modifiers, attributes, menu_hint}... ],
-#     "reason": "<string>" }
-# - No prose. No markdown.
-#
-# STRICT MATCHING (NO GUESSING)
-# - An item_id may be extracted ONLY if one of these is true:
-#   1) The caller spoke the exact canonical name in item_names_by_id[item_id], OR
-#   2) The caller spoke an alias that appears in aliases_by_item[item_id], OR
-#   3) The caller used a category word that unambiguously maps to exactly one candidate (category_by_item helps; if multiple candidates remain, treat as ambiguous).
-# - Never infer an item from ingredients/sauces alone (e.g., "blue cheese" ≠ "Buffalo Chicken").
-# - If a phrase matches MULTIPLE items across menus/categories, omit it and add a short "reason" mentioning the ambiguous candidates.
-#
-# ALLOWED IDS
-# - item_id MUST be one of allowed_item_ids.
-# - modifiers[*].modifier_id MUST be one of allowed_modifier_ids.
-# - variant_id MUST be one of variants_by_item[item_id] (use "base" if caller didn’t specify AND "base" exists; else the only variant).
-#
-# CATEGORY & COLLISION RULES
-# - Respect cross-menu/category language:
-#   - "long roll", "roll" → prefer Long Roll items
-#   - "Arabic sandwich", "pita" → prefer Arabic Sandwiches
-#   - "entrée", "platter", "plate" → prefer Entrées
-#   - "NY", "New York", "street style" → prefer New York category
-#   - "wrap", "hoagie", "salad", "wings", "nuggets", "burger", "quesadilla" → prefer those categories
-# - If the caller’s words do NOT uniquely select one item (after applying names/aliases/category hints), treat as ambiguous → do not extract.
-#
-#
-# QUANTITY & PACK RULES
-# - If caller says a number like “7 kibbes” without “pack/4-piece/5-piece/pcs”, set variant_id="single" (or "base" if single not present) and qty=7.
-# - Only use pack variants if explicitly requested.
-# - If caller says “singles only / no deals / no bundles”, still extract; the engine will decide bundles.
-#
-# COMBO ACCEPTANCE (STRICT)
-# - Only set combo_opt_in=true when the caller clearly says yes to a combo offer within 2 user turns of that offer.
-# - If caller declines anywhere in that window, keep combo_opt_in=false.
-# - When combo_opt_in=true, DO NOT add separate fries/soda lines unless the caller also explicitly orders extra fries/soda as standalone items later.
-#
-#
-# ATTRIBUTES (NOTES-ONLY)
-# - Put the caller’s exact phrases as a list in attributes._notes, e.g. ["no peppers","remove olives","sauce on side"].
-# - Use verbatim snippets from the caller (≤6 words each). Do NOT paraphrase or generalize.
-# - Do NOT add or guess any boolean keys (no no_onions, no_tomatoes, etc.).
-# - If nothing notable, set attributes to {}.
-#
-# SAUCE & OPTION GUARDS
-# - NY platters already include white & red sauce; add a PAID sauce modifier ONLY if the caller says “extra”.
-# - Mentions from the agent or generic listing must NOT create paid modifiers.
-# - Do not invent booleans; keep attributes as notes-only (see next section).
-#
-# VARIANTS
-# - Output the exact variant the caller asked for (e.g., "al_sham" only if explicitly requested or if the transcript explicitly says “Al-Sham style” for that item). Otherwise default to "base" when available.
-# - Do NOT flip variants based on sauces or spice hints alone.
-#
-# DISAMBIGUATION
-# - If ambiguous, omit and put a short reason in "reason".
-#
-# DRINKS (STRICT)
-# - Beverage item_ids live only in the American menu (they start with "bev-").
-# - Extract a drink ONLY if the caller explicitly orders it or clearly accepts with a drink mention.
-#   Examples of order verbs: "I want Coke", "add a water", "get me a Snapple", "I'll have a can of soda".
-# - DO NOT extract drinks when the caller is only asking (e.g., "do you have Sprite?", "what drinks do you have?") or when the agent is listing options.
-# - If a main item is made a combo, do NOT add a separate fries or soda line unless the caller explicitly orders them as separate items.
-# - If the caller specifies a drink flavor for a combo (e.g., "combo with Sprite"), do not add a separate beverage line; instead, put a short note like "Sprite for combo" in attributes._notes of the combo’d main line.
-#
-# MENU HINT
-# - Set menu_hint using item_menu_hint[item_id].
-#
-# ON AMBIGUITY OR FAILURE
-# - If nothing valid: return { "cart_lines": [], "reason": "No order found" }.
-# - If ambiguous: return the unambiguous items and include a short "reason" describing the missing clarifications.'''
-#
-#     user_prompt = (
-#         f"Transcript:\n{transcript}\n\n"
-#         f"allowed_item_ids = {json.dumps(item_ids)}\n"
-#         f"allowed_modifier_ids = {json.dumps(modifier_ids)}\n"
-#         f"variants_by_item = {json.dumps(variants_by_item)}\n"
-#         f"item_menu_hint = {json.dumps(item_menu_hint)}\n"
-#         f"item_names_by_id = {json.dumps(item_names_by_id)}\n"
-#         f"aliases_by_item = {json.dumps(aliases_by_item)}\n"
-#         f"category_by_item = {json.dumps(category_by_item)}\n"
-#         # Optional (if you want to help it ask itself): f"disambiguations = {json.dumps(disambiguations)}\n"
-#         "\nOutput schema:\n"
-#         "{ \"cart_lines\": [ { \"item_id\": \"<one of allowed_item_ids>\", \"qty\": 1, "
-#         "\"variant_id\": \"<from variants_by_item[item_id]>\", \"combo_opt_in\": false, "
-#         "\"modifiers\": [ {\"modifier_id\": \"<one of allowed_modifier_ids>\", \"qty\": 1} ], "
-#         "\"attributes\": {}, \"menu_hint\": \"\" } ], \"reason\": \"\" }\n"
-#         "Return only JSON."
-#     )
-#
-#     try:
-#         rsp = client.chat.completions.create(
-#             model=EXTRACT_MODEL,
-#             temperature=0,
-#             top_p=1,
-#             seed=7,
-#             max_tokens=800,
-#             messages=[{"role":"system","content":system_prompt},
-#                       {"role":"user","content":user_prompt}],
-#         )
-#         raw = (rsp.choices[0].message.content or "").strip()
-#     except Exception as e:
-#         return {"cart_lines": [], "reason": f"LLM error: {e}"}
-#     if raw.lower() in ("null", "none", ""):
-#         return {"cart_lines": [], "reason": "Model returned null/empty"}
-#
-#     try:
-#         data = json.loads(raw)
-#     except Exception:
-#         data = _json_only(raw) or {"cart_lines": [], "reason": "Could not parse JSON"}
-#
-#     if not isinstance(data, dict):
-#         return {"cart_lines": [], "reason": "Invalid top-level JSON (not an object)"}
-#
-#     # Merge alias seeds with model output (model can still add more detail)
-#     cart = (data.get("cart_lines") or [])
-#     allowed_items = set(item_ids)
-#     allowed_mods = set(modifier_ids)
-#
-#     drop_notes: list[str] = []
-#     sanitized: list[dict] = []
-#
-#     for ln in (cart or []):
-#         if not isinstance(ln, dict):
-#             drop_notes.append("Non-dict line dropped")
-#             continue
-#
-#         # --- item_id
-#         iid = str(ln.get("item_id", "")).strip()
-#         if not iid:
-#             drop_notes.append("Missing item_id")
-#             continue
-#         if iid not in allowed_items:
-#             drop_notes.append(f"Unknown item_id: {iid}")
-#             continue
-#
-#         # --- qty (coerce & clamp)
-#         try:
-#             qty = int(ln.get("qty", 1))
-#         except Exception:
-#             qty = 0
-#         if qty < 1:
-#             drop_notes.append(f"Non-positive qty for {iid}")
-#             continue
-#
-#         # --- variant
-#         vmap = variants_by_item.get(iid) or ["base"]
-#         vid = (ln.get("variant_id") or "base")
-#         if vid not in vmap:
-#             vid = "base" if "base" in vmap else vmap[0]
-#
-#         # --- modifiers (filter to allowed; coerce qty)
-#         clean_mods = []
-#         for m in (ln.get("modifiers") or []):
-#             if not isinstance(m, dict):
-#                 continue
-#             mid = str(m.get("modifier_id", "")).strip()
-#             if not mid or mid not in allowed_mods:
-#                 continue
-#             try:
-#                 mqty = int(m.get("qty", 1))
-#             except Exception:
-#                 mqty = 1
-#             if mqty < 1:
-#                 mqty = 1
-#             clean_mods.append({"modifier_id": mid, "qty": mqty})
-#
-#         # --- attributes (normalize)
-#         attrs = ln.get("attributes") or {}
-#         if not isinstance(attrs, dict):
-#             attrs = {}
-#         # force _notes to be a list if present
-#         if "_notes" in attrs and not isinstance(attrs["_notes"], list):
-#             attrs["_notes"] = [str(attrs["_notes"])]
-#
-#         sanitized.append({
-#             "item_id": iid,
-#             "qty": qty,
-#             "variant_id": vid,
-#             "combo_opt_in": bool(ln.get("combo_opt_in", False)),
-#             "modifiers": clean_mods,
-#             "attributes": attrs,
-#             # menu_hint set below from authoritative map
-#         })
-#
-#     # --- force canonical attributes from transcript helpers
-#     sanitized = _inject_rice_attribute(transcript, sanitized)
-#     # sanitized = _inject_alsham_style(transcript, sanitized)
-#     sanitized = _force_combo_if_affirmed(transcript, sanitized)
-#
-#     # --- HARD ENFORCEMENT: authoritative menu_hint
-#     for ln in sanitized:
-#         iid = ln["item_id"]
-#         hint = item_menu_hint.get(iid, ln.get("menu_hint") or "middle-eastern")
-#         hint = "american" if hint == "american" else "middle-eastern"
-#         ln["menu_hint"] = hint
-#
-#     # --- de-dupe identical logical lines (sum qty)
-#     def _attr_key(a: dict) -> tuple:
-#         # stable, hashable key for attributes (order-insensitive)
-#         items = []
-#         for k, v in (a or {}).items():
-#             if k == "_notes":
-#                 items.append((k, tuple(str(x) for x in (v or []))))
-#             else:
-#                 items.append((k, v if isinstance(v, (str, int, float, bool, type(None))) else str(v)))
-#         return tuple(sorted(items))
-#
-#     acc: dict[tuple, dict] = {}
-#     for ln in sanitized:
-#         key = (
-#             ln["item_id"],
-#             ln["variant_id"],
-#             ln["menu_hint"],
-#             _attr_key(ln.get("attributes") or {}),
-#             tuple(sorted((m["modifier_id"], m["qty"]) for m in ln.get("modifiers") or [])),
-#             bool(ln.get("combo_opt_in", False)),
-#         )
-#         if key not in acc:
-#             acc[key] = dict(ln)
-#         else:
-#             acc[key]["qty"] += ln["qty"]
-#
-#     cart = list(acc.values())
-#
-#     # --- final helpers again (in case qty merged etc.)
-#     cart = _inject_rice_attribute(transcript, cart)
-#     cart = _force_combo_if_affirmed(transcript, cart)
-#
-#     reason_bits = [data.get("reason", "")] if data.get("reason") else []
-#     if drop_notes:
-#         reason_bits.append(" | ".join(drop_notes))
-#     reason = " ; ".join([r for r in reason_bits if r])
-#
-#     return {"cart_lines": cart, "reason": reason or "", "detected_menu": None}
 
 COMBO_ANY_RE   = re.compile(r"\bcombo\b", re.I)
 COMBO_ALL_RE   = re.compile(r"\b(both|all)\b.*\bcombo\b|\bcombo\b.*\b(both|all)\b", re.I)
@@ -1031,7 +1079,25 @@ def _reconcile_combo(transcript: str, cart_lines: list[dict]) -> list[dict]:
     # leave the model’s per-line decisions as-is (the LLM may already have split lines).
     return cart_lines
 
-def _extract_cart(transcript: str, schema_ctx: dict) -> Dict[str, Any]:
+# COMBO_MOD_ID_RE = re.compile(r"(combo|fries.*(can|soda)|fries.*drink|make.*combo)", re.I)
+#
+# def _hoist_combo_mod_to_flag(lines: List[Dict]) -> List[Dict]:
+#     out = []
+#     for ln in (lines or []):
+#         mods, combo_seen = [], bool(ln.get("combo_opt_in", False))
+#         for m in (ln.get("modifiers") or []):
+#             mid = (m.get("modifier_id") or "")
+#             if COMBO_MOD_ID_RE.search(mid):  # modifier -> flag
+#                 combo_seen = True
+#                 continue
+#             mods.append(m)
+#         ln["combo_opt_in"] = combo_seen
+#         ln["modifiers"] = mods
+#         out.append(ln)
+#     return out
+
+
+def _extract_cart(transcript_user: str, transcript_with_agent: str | None, schema_ctx: dict) -> Dict[str, Any]:
     """
     Universal extractor — model decides items only using known menu names/aliases.
     Global combo handling included. No static per-scenario rules.
@@ -1046,41 +1112,113 @@ def _extract_cart(transcript: str, schema_ctx: dict) -> Dict[str, Any]:
     system_prompt = """
 You are a RESTAURANT ORDER EXTRACTOR.
 
-You will receive a conversation transcript (Agent + User). Use Agent lines only
-as context to interpret user replies like “just one of them.” Extract items
-strictly from USER intent using known menu names and aliases.
+You will receive the FULL conversation, including both Agent and User lines.
+Use Agent lines ONLY as context (offers, clarifications). Extract items STRICTLY
+from what the USER actually requests or explicitly accepts. Never invent items.
 
-Return STRICT JSON:
+!!! OUTPUT FORMAT (JSON ONLY) !!!
+Return ONLY a single JSON object with this exact shape (no prose, no markdown):
+
 {
   "cart_lines": [
     {
       "item_id": "<from allowed_item_ids>",
-      "qty": <int>,
-      "variant_id": "<from variants_by_item[item_id]>",
-      "combo_opt_in": <bool>,
-      "modifiers": [ { "modifier_id": "<from allowed_modifier_ids>", "qty": <int> } ],
-      "attributes": { "_notes": ["exact phrases"] },
+      "qty": <int>=1+,
+      "variant_id": "<from variants_by_item[item_id] or 'base'>",
+      "combo_opt_in": <true|false>,
+      "modifiers": [ { "modifier_id": "<from allowed_modifier_ids>", "qty": <int>=1+ } ],
+      "attributes": { "_notes": ["<verbatim user phrases, ≤6 words each>"] },
       "menu_hint": "<american|middle-eastern>"
     }
   ],
-  "reason": "<short reason if any>"
+  "reason": "<<=160 chars, or empty string>"
 }
 
-RULES:
-- Match items only if name or alias appears in user speech.
-- Never infer from ingredients or agent suggestions.
-- Split separate lines if the user differentiates (e.g., one combo, one regular).
-- Set combo_opt_in=true only when user explicitly accepts/asks for combo
-  (“make it a combo”, “with fries and soda”, “yes to combo”).
-- If user declines combo (“no combo”, “just regular”), keep combo_opt_in=false.
-- Capture customizations verbatim (≤6 words each) in attributes._notes.
-- Use only allowed ids, modifiers, and variants.
-- Always set menu_hint from item_menu_hint[item_id].
-- If nothing valid, return { "cart_lines": [], "reason": "No valid order" }.
+If nothing valid is ordered, return:
+{ "cart_lines": [], "reason": "No valid order" }
+
+CONTEXT YOU WILL RECEIVE (as JSON fields):
+- allowed_item_ids
+- item_names_by_id
+- aliases_by_item
+- modifier_ids (allowed_modifier_ids)
+- variants_by_item
+- item_menu_hint
+- user_transcript   (full convo text; prefix lines with 'User:' or 'Agent:')
+
+HARD RULES (STRICT):
+1) Match only when a USER utterance contains the item’s exact name or an approved alias.
+   - Agent suggestions DO NOT count unless followed by an explicit USER acceptance (e.g., “yes, add that”).
+2) Do NOT infer items from ingredients, category names, or general intent.
+3) Do NOT output any item_id, variant_id, or modifier_id that is not present in the allowed lists.
+4) qty must be an integer ≥1. If user says a bare number before/after the item, use that as qty.
+5) attributes must ONLY contain `_notes` (array of short verbatim user phrases, each ≤6 words). No other keys.
+6) menu_hint MUST be set from item_menu_hint[item_id] exactly.
+7) Never add combo as a modifier. combo_opt_in is the ONLY combo signal in this JSON.
+8) Never output prices, currency, totals, or any fields outside the schema.
+9) • You will be given both transcripts:
+   - transcript_user: ONLY user lines (authoritative for items/combos)
+   - transcript_with_agent: full convo (Agent lines allowed ONLY to resolve pronouns like “that one”, never to add items or combos by themselves).
+10) Strictly matched the extracted item with the menu.
+COMBO (STRICT):
+- Set combo_opt_in=true ONLY if the USER explicitly requests/accepts combo in their own words:
+  examples: “make it a combo”, “with fries and soda”, “yes, combo”, “okay, add fries and a soda”.
+- If the Agent offers a combo, you must see a USER acceptance (“yes/ok/sure/please” OR a rephrasing that clearly accepts).
+- If the USER declines (“no combo”, “just regular”, “without fries/soda”), set combo_opt_in=false.
+- If the USER mentions combo for one of multiple mains, apply true only to that referenced main. If ambiguous, apply to the LAST mentioned main. Do NOT set combo on all by default.
+- Agent offers do NOT count unless followed by explicit USER acceptance in transcript_user.
+
+
+CUSTOMER PHRASE & WORD ORDER AWARENESS (CRITICAL)
+
+Customers often say item names in different word orders or with small phrasing changes (e.g., “burger chicken deluxe” instead of “Deluxe Chicken Burger”).
+
+You must match meaning and tokens, not position — recognize valid items even when the customer rearranges words or adds small fillers.
+
+However, only match if all key tokens of an item’s official name or alias appear together in the USER’s phrase (order may vary, but words must all be present).
+
+Do not guess based on partial overlap or ingredients alone.
+
+Always double-check the full phrase before extracting — a single wrong item  can ruin the entire order.
+
+When multiple candidates share words, choose the item whose name best matches the USER’s exact spoken wording, including modifiers like “deluxe”, “large”, “combo”, or “spicy”.
+APPETIZER QUANTITY & PACKS:
+- If the USER gives a count without “pack/pcs/pieces/deal/combo”, treat as singles: qty=<count>, variant_id="single" if available else "base".
+- Use an explicit pack variant ONLY if the USER clearly says “pack/deal/4-piece/5 pcs/…”.
+- Never add a generic placeholder (e.g., “Appetizer Single”) when a concrete item (e.g., “Chicken Samosa”) was recognized; prefer the concrete item and drop placeholders.
+
+MULTIPLE LINES:
+- Split lines when the USER differentiates items (e.g., “one combo, one regular”).
+- Different variants, attributes, or combo flags → separate lines.
+
+NEGATIVE RULES:
+- Do NOT rely on Agent lines alone to add anything.
+- Do NOT carry over items suggested but never accepted by the USER.
+- Do NOT guess drink flavors or sides unless the USER said them; if unspecified, omit from notes.
+
+VALIDATION BEFORE RETURN:
+- Each cart line must pass:
+  • item_id ∈ allowed_item_ids
+  • variant_id ∈ variants_by_item[item_id] (else use "base")
+  • Every modifier.modifier_id ∈ allowed_modifier_ids (drop invalid ones)
+  • qty ≥ 1 (integer)
+  • menu_hint = item_menu_hint[item_id]
+- If no valid lines remain, return { "cart_lines": [], "reason": "No valid order" }.
+
+MICRO EXAMPLES (NOT PART OF OUTPUT):
+- User: “NY over rice. Make it a combo.” → combo_opt_in=true for that main.
+- Agent: “Want to make it a combo?” User: “No, regular.” → combo_opt_in=false.
+- User: “5 samosas” (no “pcs/pack”) → qty=5, variant_id="single" (if exists) else "base".
+- User: “Two chicken sandwiches; make ONLY one a combo.” → last mentioned main combo_opt_in=true; the other false.
+
+Return ONLY the JSON object described above. No explanations.
+
+
 """
 
     user_prompt = json.dumps({
-        "user_transcript": transcript,
+        "transcript_user": transcript_user,
+       "transcript_with_agent": (transcript_with_agent or ""),
         "allowed_item_ids": item_ids,
         "item_names_by_id": item_names_by_id,
         "aliases_by_item": aliases_by_item,
@@ -1095,6 +1233,7 @@ RULES:
             temperature=0,
             top_p=1,
             max_tokens=1000,
+            response_format={"type": "json_object"},  # NEW
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -1128,12 +1267,16 @@ RULES:
         if vid not in vmap:
             vid = "base"
 
+
         # modifiers
         clean_mods = []
         for m in (ln.get("modifiers") or []):
             if not isinstance(m, dict):
                 continue
             mid = str(m.get("modifier_id") or "").strip()
+            # NEW: drop combo-like modifiers early
+            if COMBO_MOD_RE.search(mid):
+                continue
             if mid in modifier_ids:
                 try:
                     mqty = max(1, int(m.get("qty", 1)))
@@ -1160,9 +1303,27 @@ RULES:
             "menu_hint": item_menu_hint.get(iid, "middle-eastern"),
         })
 
-    # --- universal combo reconciliation (non-scenario) ---
-    # sanitized = _force_combo_if_affirmed(transcript, sanitized)
-    sanitized = _reconcile_combo(transcript, sanitized)
+    # 1) Category policies (generic, menu-driven)
+    sanitized = _apply_category_policies(transcript_user, sanitized, schema_ctx)
+
+    # 2) Prefer specific over placeholders (menu-driven)
+    placeholders = _index_placeholders(schema_ctx.get("_menus") or {})
+    sanitized = _prefer_specific_over_placeholder(sanitized, schema_ctx, placeholders)
+
+    # 3) Dedupe logically identical lines (you already have this)
+    sanitized = _merge_duplicate_lines(sanitized)
+
+    # 4) Ensure priceable (deterministic repair or drop)
+    sanitized, _dbg_unpriceable = _priceability_gate(sanitized, schema_ctx)
+
+
+    sanitized = _reconcile_combo(transcript_user, sanitized)
+
+    # sanitized = _hoist_combo_mod_to_flag(sanitized)
+
+    # sanitized = _normalize_appetizer_packs(transcript, sanitized, schema_ctx)
+    # sanitized = _drop_generic_appetizer_placeholders(sanitized)
+    # sanitized = _merge_duplicate_lines(sanitized)
 
     # --- enforce canonical menu hint ---
     for ln in sanitized:
@@ -1171,6 +1332,8 @@ RULES:
         ln["menu_hint"] = "american" if hint == "american" else "middle-eastern"
 
     return {"cart_lines": sanitized, "reason": data.get("reason", "")}
+
+
 def _summarize(
     pricing: Dict[str, Any],
     collected: Dict[str, Any],
@@ -1230,7 +1393,8 @@ def _summarize(
         parts.append(f"Address: {address or '—'}")
 
     # ---------- NO ITEMS ----------
-    lines = pricing.get("lines") or []
+    # Only show lines that actually have a priced total (> 0)
+    lines = [ln for ln in (pricing.get("lines") or []) if float(ln.get("line_total") or 0) > 0]
     if not lines:
         st = call_meta.get("status", "").lower()
         if st == "canceled":
@@ -1353,12 +1517,14 @@ def ingest_eleven(payload: Dict[str, Any], request: Request):
     bundle = _load_menu_bundle(collected.get("menu_hint"))
     schema_ctx = _union_schema_from_bundle(bundle)
 
-    extraction = _extract_cart(t_with_agent, schema_ctx)
+    extraction = _extract_cart(t_user_only, t_with_agent, schema_ctx)
     raw_lines: List[Dict[str, Any]] = _repair_llm_lines(extraction.get("cart_lines") or [])
     line_models = _normalize_to_lines(raw_lines)
 
     cancel_seen = _detect_cancellation(t_user_only)
-    transfer_info = _detect_transfer(t_user_only) or _handoff_from_payload(payload)
+    transfer_info_detected = _detect_transfer_both_sides(t_with_agent, t_user_only)
+    transfer_info = transfer_info_detected or _handoff_from_payload(payload)
+    # transfer_info = _detect_transfer(t_user_only) or _handoff_from_payload(payload)
     call_cut_seen = _detect_call_cut(t_user_only)
     info_only = _detect_info_only(t_user_only) and not line_models
 
@@ -1371,18 +1537,19 @@ def ingest_eleven(payload: Dict[str, Any], request: Request):
                 payload_utterance=t_user_only,
                 include_tax=True,
                 menu_bundle=bundle,
-                combo_mode="explicit",  # preferred if supported
+                combo_mode="explicit",
                 allow_auto_combo=False
             )
         except TypeError:
-            # older calc_core signature
             pricing = calc_core(
                 payload_cart=line_models,
                 payload_utterance=t_user_only,
                 include_tax=True,
                 menu_bundle=bundle,
             )
-            pricing = _enforce_explicit_combos(pricing, line_models)  # <- hard guard
+        # NEW: enforce in all cases
+        pricing = _enforce_explicit_combos(pricing, line_models)
+
 
         priced_lines_exist = bool((pricing.get("lines") or []))
 
@@ -1394,13 +1561,24 @@ def ingest_eleven(payload: Dict[str, Any], request: Request):
             if iid:
                 ln["desc"] = name_idx.get((iid, hint), ln.get("desc", iid))
 
-    final_status = _resolve_status(
+    final_status, show_pricing = _resolve_status_and_pricing_visibility(
         transcript=t_user_only,
+        collected=collected,
+        schema_ctx=schema_ctx,
         extracted_lines=raw_lines,
+        priced_lines_exist=bool(pricing and (pricing.get("lines") or [])),
         transfer_info=transfer_info,
         cancel_seen=cancel_seen,
         call_cut_seen=call_cut_seen,
+        info_only=info_only,
     )
+    # final_status = _resolve_status(
+    #     transcript=t_user_only,
+    #     extracted_lines=raw_lines,
+    #     transfer_info=transfer_info,
+    #     cancel_seen=cancel_seen,
+    #     call_cut_seen=call_cut_seen,
+    # )
 
     call_meta = {
         "order_type": (collected.get("order_type") or "unspecified"),
@@ -1413,7 +1591,8 @@ def ingest_eleven(payload: Dict[str, Any], request: Request):
         call_meta["transfer"] = transfer_info
 
     # always nullify if no lines (deterministic)
-    pricing_to_return = pricing if (pricing and (pricing.get("lines") or [])) else None
+    # pricing_to_return = pricing if (pricing and (pricing.get("lines") or [])) else None
+    pricing_to_return = pricing if (pricing and show_pricing and (pricing.get("lines") or [])) else None
     has_order = bool(pricing_to_return)
 
     # pricing_to_return = pricing if (pricing and show_pricing) else None
